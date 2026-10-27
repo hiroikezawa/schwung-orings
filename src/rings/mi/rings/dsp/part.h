@@ -91,6 +91,12 @@ class Part {
     dirty_ = true;
   }
   
+  // oRings patch: strength of the internal exciter for the NEXT strum
+  // (the modal pulse, the plucker's noise burst, the FM voice's internal
+  // envelope). 1.0 is the hardware's fixed strike, and leaves every sample
+  // exactly as upstream computes it.
+  inline void set_exciter_gain(float gain) { exciter_gain_ = gain; }
+
   inline ResonatorModel model() const { return model_; }
   inline void set_model(ResonatorModel model) {
     if (model != model_) {
@@ -171,6 +177,9 @@ class Part {
 
   float note_[kMaxPolyphony];
   NoteFilter note_filter_;
+
+  float exciter_gain_;  // oRings patch
+  float plucker_gain_[kMaxPolyphony];  // oRings patch: latched per strum
   
   float resonator_input_[kMaxBlockSize];
   float sympathetic_resonator_input_[kMaxBlockSize];

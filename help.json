@@ -1,0 +1,121 @@
+{
+  "title": "oRings",
+  "children": [
+    {
+      "title": "Idea",
+      "lines": [
+        "A resonator played",
+        "from MIDI: each note",
+        "strikes a modal body",
+        "or a string, which",
+        "rings and decays on",
+        "its own. The DSP is",
+        "the original open-",
+        "source Rings code,",
+        "run at 48 kHz."
+      ]
+    },
+    {
+      "title": "Playing",
+      "lines": [
+        "Note-on = strike.",
+        "Same note again =",
+        "strike again.",
+        "Note-off does",
+        "nothing: DAMPING",
+        "sets the decay.",
+        "Velocity = how hard",
+        "(see VELO).",
+        "Chords: one strike",
+        "per note, 10.5 ms",
+        "apart (SPREAD)."
+      ]
+    },
+    {
+      "title": "Main page",
+      "lines": [
+        "1 FREQ  transpose",
+        "        -24..+24 st",
+        "2 STRUCT harmonic",
+        "        structure",
+        "3 BRIGHT tone",
+        "4 DAMP  decay time",
+        "5 POS   where it is",
+        "        struck",
+        "6 MODEL 12 modes",
+        "7 POLY  1-4 voices",
+        "8 LEVEL volume",
+        "Knobs 2-5 change",
+        "name with MODEL."
+      ]
+    },
+    {
+      "title": "Models",
+      "lines": [
+        "MODAL  modal body",
+        "SYMPA  sympathetic",
+        "       strings",
+        "STRNG  inharmonic",
+        "       string",
+        "KVERB  Karplusverb",
+        "FM     2-op FM",
+        "CHORD  Western",
+        "       Chords",
+        "DP-..  Disastrous",
+        "       Peace: string",
+        "       machine with",
+        "       FM=formant,",
+        "       CH=chorus,",
+        "       RV=reverb,",
+        "       F2, EN=ensem-",
+        "       ble, R2"
+      ]
+    },
+    {
+      "title": "Mode knobs",
+      "lines": [
+        "FM: RATIO, INDEX,",
+        "  DECAY, FDBK",
+        "KVERB: DCY+RV =",
+        "  decay + reverb",
+        "CHORD: STRUCT",
+        "  picks the chord",
+        "DP: CHORD, REGIST",
+        "  (organ stops),",
+        "  ENV (attack/",
+        "  decay), then the",
+        "  effect amount"
+      ]
+    },
+    {
+      "title": "Advanced page",
+      "lines": [
+        "1 FINE  cents",
+        "2 EXCITE strike",
+        "        strength %",
+        "3 SPREAD ms between",
+        "        chord notes",
+        "4 VELO  velocity",
+        "        response %",
+        "5 BEND  bend range",
+        "6 OUTPUT STEREO =",
+        "  ODD L / EVEN R,",
+        "  SUM, ODD, EVEN",
+        "7 GAIN  dB",
+        "8 RESET click to",
+        "  silence all"
+      ]
+    },
+    {
+      "title": "Odd / Even",
+      "lines": [
+        "1 voice: the two",
+        "pickups of one body.",
+        "2-4 voices: voices",
+        "alternate between",
+        "ODD (left) and",
+        "EVEN (right)."
+      ]
+    }
+  ]
+}

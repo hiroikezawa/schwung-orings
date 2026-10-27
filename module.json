@@ -1,0 +1,603 @@
+{
+  "id": "orings",
+  "name": "oRings",
+  "abbrev": "oRNGS",
+  "version": "0.1.0",
+  "description": "Physical-modelling resonator from the original open-source Rings DSP at its own 48 kHz: modal, sympathetic strings, inharmonic string, 2-op FM, Western Chords, Karplusverb and the Disastrous Peace string machine, 1-4 voices, played from MIDI",
+  "author": "Hiro Ikezawa",
+  "license": "MIT",
+  "api_version": 2,
+  "dsp": "dsp.so",
+  "component_type": "sound_generator",
+  "capabilities": {
+    "component_type": "sound_generator",
+    "chainable": true,
+    "audio_in": false,
+    "audio_out": true,
+    "midi_in": true,
+    "midi_out": false,
+    "chain_params": [
+      {
+        "key": "frequency",
+        "name": "Frequency",
+        "short_name": "FREQ",
+        "type": "int",
+        "min": -24,
+        "max": 24,
+        "step": 1,
+        "default": 0,
+        "unit": "st"
+      },
+      {
+        "key": "structure",
+        "name": "Structure",
+        "short_name": "STRUCT",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "ratio",
+        "name": "FM Ratio",
+        "short_name": "RATIO",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "chord",
+        "name": "Chord",
+        "short_name": "CHORD",
+        "type": "enum",
+        "options": [
+          "OCT",
+          "5",
+          "sus4",
+          "m",
+          "m7",
+          "m9",
+          "m11",
+          "69",
+          "M9",
+          "M7",
+          "M"
+        ],
+        "default": "OCT"
+      },
+      {
+        "key": "brightness",
+        "name": "Brightness",
+        "short_name": "BRIGHT",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "fm_index",
+        "name": "FM Index",
+        "short_name": "INDEX",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "brightness_c",
+        "name": "Brightness",
+        "short_name": "BRIGHT",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "registration",
+        "name": "Registration",
+        "short_name": "REGIST",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "damping",
+        "name": "Damping",
+        "short_name": "DAMP",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "decay_verb",
+        "name": "Decay+Verb",
+        "short_name": "DCY+RV",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "decay",
+        "name": "FM Decay",
+        "short_name": "DECAY",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "damping_c",
+        "name": "Damping",
+        "short_name": "DAMP",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "envelope",
+        "name": "Envelope",
+        "short_name": "ENV",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.5
+      },
+      {
+        "key": "position",
+        "name": "Position",
+        "short_name": "POS",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "feedback",
+        "name": "FM Feedback",
+        "short_name": "FDBK",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "position_c",
+        "name": "Position",
+        "short_name": "POS",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "vowel",
+        "name": "Vowel",
+        "short_name": "VOWEL",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "chorus",
+        "name": "Chorus",
+        "short_name": "CHORUS",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "reverb",
+        "name": "Reverb",
+        "short_name": "REVERB",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "vowel_2",
+        "name": "Vowel",
+        "short_name": "VOWEL",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "ensemble",
+        "name": "Ensemble",
+        "short_name": "ENSMBL",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "reverb_2",
+        "name": "Reverb",
+        "short_name": "REVERB",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
+      },
+      {
+        "key": "model",
+        "name": "Model",
+        "short_name": "MODEL",
+        "type": "enum",
+        "options": [
+          "MODAL",
+          "SYMPA",
+          "STRNG",
+          "KVERB",
+          "FM",
+          "CHORD",
+          "DP-FM",
+          "DP-CH",
+          "DP-RV",
+          "DP-F2",
+          "DP-EN",
+          "DP-R2"
+        ],
+        "default": "MODAL"
+      },
+      {
+        "key": "polyphony",
+        "name": "Polyphony",
+        "short_name": "POLY",
+        "type": "enum",
+        "options": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "default": "2"
+      },
+      {
+        "key": "level",
+        "name": "Level",
+        "short_name": "LEVEL",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.7
+      },
+      {
+        "key": "fine",
+        "name": "Fine Tune",
+        "short_name": "FINE",
+        "type": "int",
+        "min": -100,
+        "max": 100,
+        "step": 1,
+        "default": 0,
+        "unit": "ct"
+      },
+      {
+        "key": "exciter",
+        "name": "Exciter Level",
+        "short_name": "EXCITE",
+        "type": "int",
+        "min": 0,
+        "max": 200,
+        "step": 1,
+        "default": 100,
+        "unit": "%"
+      },
+      {
+        "key": "spread",
+        "name": "Strum Spread",
+        "short_name": "SPREAD",
+        "type": "int",
+        "min": 10,
+        "max": 200,
+        "step": 1,
+        "default": 10,
+        "unit": "ms"
+      },
+      {
+        "key": "velocity",
+        "name": "Velocity",
+        "short_name": "VELO",
+        "type": "int",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "default": 50,
+        "unit": "%"
+      },
+      {
+        "key": "bend_range",
+        "name": "Bend Range",
+        "short_name": "BEND",
+        "type": "int",
+        "min": 0,
+        "max": 24,
+        "step": 1,
+        "default": 2,
+        "unit": "st"
+      },
+      {
+        "key": "output",
+        "name": "Output",
+        "short_name": "OUTPUT",
+        "type": "enum",
+        "options": [
+          "STEREO",
+          "SUM",
+          "ODD",
+          "EVEN"
+        ],
+        "default": "STEREO"
+      },
+      {
+        "key": "gain",
+        "name": "Gain",
+        "short_name": "GAIN",
+        "type": "int",
+        "min": -24,
+        "max": 12,
+        "step": 1,
+        "default": 0,
+        "unit": "dB"
+      },
+      {
+        "key": "reset",
+        "name": "Reset",
+        "short_name": "RESET",
+        "type": "enum",
+        "options": [
+          "-",
+          "RESET"
+        ],
+        "default": "-",
+        "access": "write"
+      }
+    ],
+    "ui_hierarchy": {
+      "modes": null,
+      "levels": {
+        "root": {
+          "label": "oRings",
+          "knobs": [
+            "frequency",
+            "structure",
+            "ratio",
+            "chord",
+            "brightness",
+            "fm_index",
+            "brightness_c",
+            "registration",
+            "damping",
+            "decay_verb",
+            "decay",
+            "damping_c",
+            "envelope",
+            "position",
+            "feedback",
+            "position_c",
+            "vowel",
+            "chorus",
+            "reverb",
+            "vowel_2",
+            "ensemble",
+            "reverb_2",
+            "model",
+            "polyphony",
+            "level"
+          ],
+          "params": [
+            "frequency",
+            {
+              "key": "structure",
+              "visible_if": {
+                "param": "model",
+                "lt": 4
+              }
+            },
+            {
+              "key": "ratio",
+              "visible_if": {
+                "param": "model",
+                "equals": 4
+              }
+            },
+            {
+              "key": "chord",
+              "visible_if": {
+                "param": "model",
+                "gt": 4
+              }
+            },
+            {
+              "key": "brightness",
+              "visible_if": {
+                "param": "model",
+                "lt": 4
+              }
+            },
+            {
+              "key": "fm_index",
+              "visible_if": {
+                "param": "model",
+                "equals": 4
+              }
+            },
+            {
+              "key": "brightness_c",
+              "visible_if": {
+                "param": "model",
+                "equals": 5
+              }
+            },
+            {
+              "key": "registration",
+              "visible_if": {
+                "param": "model",
+                "gt": 5
+              }
+            },
+            {
+              "key": "damping",
+              "visible_if": {
+                "param": "model",
+                "lt": 3
+              }
+            },
+            {
+              "key": "decay_verb",
+              "visible_if": {
+                "param": "model",
+                "equals": 3
+              }
+            },
+            {
+              "key": "decay",
+              "visible_if": {
+                "param": "model",
+                "equals": 4
+              }
+            },
+            {
+              "key": "damping_c",
+              "visible_if": {
+                "param": "model",
+                "equals": 5
+              }
+            },
+            {
+              "key": "envelope",
+              "visible_if": {
+                "param": "model",
+                "gt": 5
+              }
+            },
+            {
+              "key": "position",
+              "visible_if": {
+                "param": "model",
+                "lt": 4
+              }
+            },
+            {
+              "key": "feedback",
+              "visible_if": {
+                "param": "model",
+                "equals": 4
+              }
+            },
+            {
+              "key": "position_c",
+              "visible_if": {
+                "param": "model",
+                "equals": 5
+              }
+            },
+            {
+              "key": "vowel",
+              "visible_if": {
+                "param": "model",
+                "equals": 6
+              }
+            },
+            {
+              "key": "chorus",
+              "visible_if": {
+                "param": "model",
+                "equals": 7
+              }
+            },
+            {
+              "key": "reverb",
+              "visible_if": {
+                "param": "model",
+                "equals": 8
+              }
+            },
+            {
+              "key": "vowel_2",
+              "visible_if": {
+                "param": "model",
+                "equals": 9
+              }
+            },
+            {
+              "key": "ensemble",
+              "visible_if": {
+                "param": "model",
+                "equals": 10
+              }
+            },
+            {
+              "key": "reverb_2",
+              "visible_if": {
+                "param": "model",
+                "equals": 11
+              }
+            },
+            "model",
+            "polyphony",
+            "level",
+            {
+              "level": "advanced",
+              "label": "Advanced"
+            }
+          ]
+        },
+        "advanced": {
+          "label": "Advanced",
+          "knobs": [
+            "fine",
+            "exciter",
+            "spread",
+            "velocity",
+            "bend_range",
+            "output",
+            "gain",
+            "reset"
+          ],
+          "params": [
+            "fine",
+            "exciter",
+            "spread",
+            "velocity",
+            "bend_range",
+            "output",
+            "gain",
+            "reset"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -67,6 +67,7 @@ struct VoiceGroup {
   StringSynthEnvelope envelope;
   int32_t chord;
   float structure;
+  float gain;  // oRings patch: strike strength latched at its strum
 };
 
 class StringSynthPart {
@@ -95,6 +96,9 @@ class StringSynthPart {
     }
   }
   
+  // oRings patch: strength of the NEXT strum (1.0 = the hardware).
+  inline void set_exciter_gain(float gain) { exciter_gain_ = gain; }
+
   inline void set_fx(FxType fx_type) {
     if ((fx_type % 3) != (fx_type_ % 3)) {
       clear_fx_ = true;
@@ -132,6 +136,7 @@ class StringSynthPart {
   float filter_out_buffer_[kMaxBlockSize];
   
   bool clear_fx_;
+  float exciter_gain_;  // oRings patch
   
   DISALLOW_COPY_AND_ASSIGN(StringSynthPart);
 };

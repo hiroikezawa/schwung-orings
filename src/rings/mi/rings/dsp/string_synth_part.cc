@@ -41,6 +41,7 @@ void StringSynthPart::Init(uint16_t* reverb_buffer) {
   
   polyphony_ = 1;
   fx_type_ = FX_ENSEMBLE;
+  exciter_gain_ = 1.0f;  // oRings patch
 
   for (int32_t i = 0; i < kStringSynthVoices; ++i) {
     voice_[i].Init();
@@ -49,6 +50,7 @@ void StringSynthPart::Init(uint16_t* reverb_buffer) {
   for (int32_t i = 0; i < kMaxStringSynthPolyphony; ++i) {
     group_[i].tonic = 0.0f;
     group_[i].envelope.Init();
+    group_[i].gain = 1.0f;  // oRings patch
   }
   
   for (int32_t i = 0; i < kNumFormants; ++i) {
@@ -321,6 +323,7 @@ void StringSynthPart::Process(
     envelope_flags[active_group_] = ENVELOPE_FLAG_FALLING_EDGE;
     active_group_ = (active_group_ + 1) % polyphony_;
     envelope_flags[active_group_] = ENVELOPE_FLAG_RISING_EDGE;
+    group_[active_group_].gain = exciter_gain_;  // oRings patch
     acquisition_delay_ = 3;
   }
   if (acquisition_delay_) {
@@ -344,7 +347,7 @@ void StringSynthPart::Process(
     float harmonics[kNumHarmonics * 2];
     
     ComputeRegistration(
-        envelope_values[group] * 0.25f,
+        envelope_values[group] * 0.25f * group_[group].gain,  // oRings patch
         patch.brightness,
         harmonics);
     

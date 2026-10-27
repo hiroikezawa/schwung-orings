@@ -41,6 +41,8 @@ void Part::Init(uint16_t* reverb_buffer) {
   active_voice_ = 0;
   
   fill(&note_[0], &note_[kMaxPolyphony], 0.0f);
+  exciter_gain_ = 1.0f;  // oRings patch
+  fill(&plucker_gain_[0], &plucker_gain_[kMaxPolyphony], 1.0f);
   
   bypass_ = false;
   polyphony_ = 1;
@@ -308,7 +310,7 @@ void Part::RenderModalVoice(
       voice == active_voice_ &&
       performance_state.strum) {
     resonator_input_[0] += 0.25f * SemitonesToRatio(
-        filter_cutoff * filter_cutoff * 24.0f) / filter_cutoff;
+        filter_cutoff * filter_cutoff * 24.0f) / filter_cutoff * exciter_gain_;
   }
   
   // Process through filter.
@@ -335,7 +337,7 @@ void Part::RenderFMVoice(
   if (performance_state.internal_exciter &&
       voice == active_voice_ &&
       performance_state.strum) {
-    v.TriggerInternalEnvelope();
+    v.TriggerInternalEnvelope(exciter_gain_);
   }
 
   v.set_frequency(frequency);
@@ -392,10 +394,11 @@ void Part::RenderStringVoice(
   if (performance_state.internal_exciter) {
     if (voice == active_voice_ && performance_state.strum) {
       plucker_[voice].Trigger(frequency, filter_cutoff * 8.0f, patch.position);
+      plucker_gain_[voice] = exciter_gain_;  // oRings patch
     }
     plucker_[voice].Process(noise_burst_buffer_, size);
     for (size_t i = 0; i < size; ++i) {
-      resonator_input_[i] += noise_burst_buffer_[i];
+      resonator_input_[i] += noise_burst_buffer_[i] * plucker_gain_[voice];
     }
   }
   dc_blocker_[voice].Process(resonator_input_, size);

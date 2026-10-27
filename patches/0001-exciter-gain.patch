@@ -1,0 +1,156 @@
+diff --git a/rings/dsp/fm_voice.h b/rings/dsp/fm_voice.h
+index d1a034a..c493744 100644
+--- a/rings/dsp/fm_voice.h
++++ b/rings/dsp/fm_voice.h
+@@ -80,9 +80,10 @@ class FMVoice {
+     feedback_amount_ = feedback_amount;
+   }
+   
+-  inline void TriggerInternalEnvelope() {
+-    amplitude_envelope_ = 1.0f;
+-    brightness_envelope_ = 1.0f;
++  // oRings patch: the strike's strength (1.0 = the hardware's fixed strike).
++  inline void TriggerInternalEnvelope(float gain = 1.0f) {
++    amplitude_envelope_ = gain;
++    brightness_envelope_ = gain;
+   }
+   
+   inline float SineFm(uint32_t phase, float fm) const {
+diff --git a/rings/dsp/part.cc b/rings/dsp/part.cc
+index 60b1c4d..257ad90 100644
+--- a/rings/dsp/part.cc
++++ b/rings/dsp/part.cc
+@@ -41,6 +41,8 @@ void Part::Init(uint16_t* reverb_buffer) {
+   active_voice_ = 0;
+   
+   fill(&note_[0], &note_[kMaxPolyphony], 0.0f);
++  exciter_gain_ = 1.0f;  // oRings patch
++  fill(&plucker_gain_[0], &plucker_gain_[kMaxPolyphony], 1.0f);
+   
+   bypass_ = false;
+   polyphony_ = 1;
+@@ -308,7 +310,7 @@ void Part::RenderModalVoice(
+       voice == active_voice_ &&
+       performance_state.strum) {
+     resonator_input_[0] += 0.25f * SemitonesToRatio(
+-        filter_cutoff * filter_cutoff * 24.0f) / filter_cutoff;
++        filter_cutoff * filter_cutoff * 24.0f) / filter_cutoff * exciter_gain_;
+   }
+   
+   // Process through filter.
+@@ -335,7 +337,7 @@ void Part::RenderFMVoice(
+   if (performance_state.internal_exciter &&
+       voice == active_voice_ &&
+       performance_state.strum) {
+-    v.TriggerInternalEnvelope();
++    v.TriggerInternalEnvelope(exciter_gain_);
+   }
+ 
+   v.set_frequency(frequency);
+@@ -392,10 +394,11 @@ void Part::RenderStringVoice(
+   if (performance_state.internal_exciter) {
+     if (voice == active_voice_ && performance_state.strum) {
+       plucker_[voice].Trigger(frequency, filter_cutoff * 8.0f, patch.position);
++      plucker_gain_[voice] = exciter_gain_;  // oRings patch
+     }
+     plucker_[voice].Process(noise_burst_buffer_, size);
+     for (size_t i = 0; i < size; ++i) {
+-      resonator_input_[i] += noise_burst_buffer_[i];
++      resonator_input_[i] += noise_burst_buffer_[i] * plucker_gain_[voice];
+     }
+   }
+   dc_blocker_[voice].Process(resonator_input_, size);
+diff --git a/rings/dsp/part.h b/rings/dsp/part.h
+index 39af806..b2c99d8 100644
+--- a/rings/dsp/part.h
++++ b/rings/dsp/part.h
+@@ -91,6 +91,12 @@ class Part {
+     dirty_ = true;
+   }
+   
++  // oRings patch: strength of the internal exciter for the NEXT strum
++  // (the modal pulse, the plucker's noise burst, the FM voice's internal
++  // envelope). 1.0 is the hardware's fixed strike, and leaves every sample
++  // exactly as upstream computes it.
++  inline void set_exciter_gain(float gain) { exciter_gain_ = gain; }
++
+   inline ResonatorModel model() const { return model_; }
+   inline void set_model(ResonatorModel model) {
+     if (model != model_) {
+@@ -171,6 +177,9 @@ class Part {
+ 
+   float note_[kMaxPolyphony];
+   NoteFilter note_filter_;
++
++  float exciter_gain_;  // oRings patch
++  float plucker_gain_[kMaxPolyphony];  // oRings patch: latched per strum
+   
+   float resonator_input_[kMaxBlockSize];
+   float sympathetic_resonator_input_[kMaxBlockSize];
+diff --git a/rings/dsp/string_synth_part.cc b/rings/dsp/string_synth_part.cc
+index 8bcb83a..dddaa05 100644
+--- a/rings/dsp/string_synth_part.cc
++++ b/rings/dsp/string_synth_part.cc
+@@ -41,6 +41,7 @@ void StringSynthPart::Init(uint16_t* reverb_buffer) {
+   
+   polyphony_ = 1;
+   fx_type_ = FX_ENSEMBLE;
++  exciter_gain_ = 1.0f;  // oRings patch
+ 
+   for (int32_t i = 0; i < kStringSynthVoices; ++i) {
+     voice_[i].Init();
+@@ -49,6 +50,7 @@ void StringSynthPart::Init(uint16_t* reverb_buffer) {
+   for (int32_t i = 0; i < kMaxStringSynthPolyphony; ++i) {
+     group_[i].tonic = 0.0f;
+     group_[i].envelope.Init();
++    group_[i].gain = 1.0f;  // oRings patch
+   }
+   
+   for (int32_t i = 0; i < kNumFormants; ++i) {
+@@ -321,6 +323,7 @@ void StringSynthPart::Process(
+     envelope_flags[active_group_] = ENVELOPE_FLAG_FALLING_EDGE;
+     active_group_ = (active_group_ + 1) % polyphony_;
+     envelope_flags[active_group_] = ENVELOPE_FLAG_RISING_EDGE;
++    group_[active_group_].gain = exciter_gain_;  // oRings patch
+     acquisition_delay_ = 3;
+   }
+   if (acquisition_delay_) {
+@@ -344,7 +347,7 @@ void StringSynthPart::Process(
+     float harmonics[kNumHarmonics * 2];
+     
+     ComputeRegistration(
+-        envelope_values[group] * 0.25f,
++        envelope_values[group] * 0.25f * group_[group].gain,  // oRings patch
+         patch.brightness,
+         harmonics);
+     
+diff --git a/rings/dsp/string_synth_part.h b/rings/dsp/string_synth_part.h
+index 16e5da7..34a8f51 100644
+--- a/rings/dsp/string_synth_part.h
++++ b/rings/dsp/string_synth_part.h
+@@ -67,6 +67,7 @@ struct VoiceGroup {
+   StringSynthEnvelope envelope;
+   int32_t chord;
+   float structure;
++  float gain;  // oRings patch: strike strength latched at its strum
+ };
+ 
+ class StringSynthPart {
+@@ -95,6 +96,9 @@ class StringSynthPart {
+     }
+   }
+   
++  // oRings patch: strength of the NEXT strum (1.0 = the hardware).
++  inline void set_exciter_gain(float gain) { exciter_gain_ = gain; }
++
+   inline void set_fx(FxType fx_type) {
+     if ((fx_type % 3) != (fx_type_ % 3)) {
+       clear_fx_ = true;
+@@ -132,6 +136,7 @@ class StringSynthPart {
+   float filter_out_buffer_[kMaxBlockSize];
+   
+   bool clear_fx_;
++  float exciter_gain_;  // oRings patch
+   
+   DISALLOW_COPY_AND_ASSIGN(StringSynthPart);
+ };
