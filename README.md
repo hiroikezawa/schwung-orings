@@ -205,6 +205,17 @@ python3 scripts/install.py http://192.168.1.42:7700
 
 インストール後は Move を再起動してください。
 
+このリポジトリは、同じ Rings DSP（`src/rings/mi/`）から Audio FX 版の
+**oRings FX**（`orings-fx`、入力音で共鳴体を鳴らすエフェクト）も作ります。
+`scripts/build.sh arm64` で `dist/orings-fx-module.tar.gz` もでき、
+`--module orings-fx` を付けて同じ `install.py` でインストールします。
+説明は `fx/README.md` にあります。
+
+同梱の DSP には公式ソースに対するパッチが 2 つあります（`patches/`）。
+`0001` は上記の打撃の強さ、`0002` は stmlib の `Interpolate` がテーブルの
+最後の要素ちょうどで 1 つ先を読んでいた不具合（DAMP を最大 1.0 にしたときに
+起きる。読んだ値には重み 0 が掛かるので音は変わらない）の修正です。
+
 CPU 負荷（Move 実機）: `scripts/build_bench.sh` でベンチを作り、
 `scripts/bench_move.sh ableton@<Move の IP> -i <鍵>` で測れます。
 

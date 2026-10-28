@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
-# Build the oRings module.
-#   scripts/build.sh native   desktop dsp.so for the tests (build/native)
-#   scripts/build.sh arm64    Move dsp.so + install tarball (dist/)
+# Build both modules of this repository from one compile of the Rings DSP:
+#   oRings     (sound generator, dsp.so)
+#   oRings FX  (audio FX, orings-fx.so; the chain host loads <id>.so)
+#   scripts/build.sh native   desktop builds for the tests (build/native,
+#                             build/native-fx)
+#   scripts/build.sh arm64    Move builds + install tarballs (dist/)
 # Copyright (c) 2026 Hiro Ikezawa. MIT License (see LICENSE).
 set -euo pipefail
-ID=orings
 MODULE="$(cd "$(dirname "$0")/.." && pwd)"
 # Schwung's plugin API header ships in third_party/schwung (MIT, see its
 # LICENSE), unmodified.
 API="$MODULE/third_party/schwung"
 
 case "${1:-arm64}" in
-  native) CXX="${CXX:-g++}"; CC="${CC:-gcc}"; OUT="$MODULE/build/native" ;;
-  arm64) CXX="${CROSS_PREFIX:-aarch64-linux-gnu-}g++"; CC="${CROSS_PREFIX:-aarch64-linux-gnu-}gcc"; OUT="$MODULE/dist/$ID" ;;
+  native) CXX="${CXX:-g++}"; CC="${CC:-gcc}"; OUT="$MODULE/build/native"; OUT_FX="$MODULE/build/native-fx" ;;
+  arm64) CXX="${CROSS_PREFIX:-aarch64-linux-gnu-}g++"; CC="${CROSS_PREFIX:-aarch64-linux-gnu-}gcc"
+         OUT="$MODULE/dist/orings"; OUT_FX="$MODULE/dist/orings-fx" ;;
   *) echo "Usage: $0 [native|arm64]" >&2; exit 2 ;;
 esac
 
 GEN="$MODULE/build/generated"
 OBJ="$MODULE/build/obj-${1:-arm64}"
-mkdir -p "$OUT" "$GEN" "$OBJ"
+mkdir -p "$OUT" "$OUT_FX" "$GEN" "$OBJ"
 python3 "$MODULE/scripts/gen_tables.py" "$GEN/orings_tables.h"
 python3 "$MODULE/scripts/metadata.py" "$GEN"
+python3 "$MODULE/scripts/fx_metadata.py" "$GEN"
 
 # -DTEST: stmlib's switch for a non-MCU build (no ".ramtext" placement).
 # -include stdio.h: as for the other Mutable ports, so a TEST branch's
@@ -39,28 +43,34 @@ COMMON=(-O2 -fPIC -fno-strict-aliasing -fno-math-errno -ffp-contract=off -DTEST
 OURS=(-std=gnu++17 -Wall -Wextra -Werror)
 VENDOR=(-std=gnu++11 -w -include stdio.h)   # third-party, compiled as shipped
 
-objs=()
-compile() {  # compile <flags-array-name> <source>
+compile() {  # compile <flags-array-name> <source>; prints the object
   local -n flags=$1
   local src=$2 obj
   obj="$OBJ/$(echo "${src#$MODULE/src/}" | tr '/' '_').o"
   "$CXX" "${COMMON[@]}" "${flags[@]}" -c "$src" -o "$obj"
-  objs+=("$obj")
+  echo "$obj"
 }
+dsp=()   # the Rings DSP, shared by both modules
 while IFS= read -r f; do
-  compile VENDOR "$f"
+  dsp+=("$(compile VENDOR "$f")")
 done < <(find "$MODULE/src/rings/mi" -name '*.cc' | sort)
-for f in "$MODULE"/src/dsp_plugin.cpp "$MODULE"/src/wrapper/*.cpp; do
-  compile OURS "$f"
-done
-"$CC" -shared -o "$OUT/dsp.so" "${objs[@]}" -Wl,-z,defs -Wl,-Bsymbolic -Wl,--gc-sections -lm
+synth=("$(compile OURS "$MODULE/src/dsp_plugin.cpp")" "$(compile OURS "$MODULE/src/wrapper/orings.cpp")")
+fx=("$(compile OURS "$MODULE/src/fx_plugin.cpp")" "$(compile OURS "$MODULE/src/fx/orings_fx.cpp")")
+LINK=(-shared -Wl,-z,defs -Wl,-Bsymbolic -Wl,--gc-sections -lm)
+"$CC" -o "$OUT/dsp.so" "${dsp[@]}" "${synth[@]}" "${LINK[@]}"
+"$CC" -o "$OUT_FX/orings-fx.so" "${dsp[@]}" "${fx[@]}" "${LINK[@]}"
 
 cp "$MODULE/module.json" "$OUT/"
+cp "$MODULE/fx/module.json" "$OUT_FX/"
 if [[ "${1:-arm64}" == arm64 ]]; then
-  python3 "$MODULE/scripts/check_abi.py" "$OUT/dsp.so"
+  python3 "$MODULE/scripts/check_abi.py" "$OUT/dsp.so" move_plugin_init_v2
+  python3 "$MODULE/scripts/check_abi.py" "$OUT_FX/orings-fx.so" move_audio_fx_init_v2
   for f in help.json README.md LICENSE THIRD_PARTY_LICENSES.md; do
     cp "$MODULE/$f" "$OUT/"
   done
-  tar -czf "$MODULE/dist/$ID-module.tar.gz" -C "$MODULE/dist" "$ID"
+  for f in LICENSE THIRD_PARTY_LICENSES.md; do cp "$MODULE/$f" "$OUT_FX/"; done
+  for f in help.json README.md; do cp "$MODULE/fx/$f" "$OUT_FX/"; done
+  tar -czf "$MODULE/dist/orings-module.tar.gz" -C "$MODULE/dist" orings
+  tar -czf "$MODULE/dist/orings-fx-module.tar.gz" -C "$MODULE/dist" orings-fx
 fi
-file "$OUT/dsp.so"
+file "$OUT/dsp.so" "$OUT_FX/orings-fx.so"

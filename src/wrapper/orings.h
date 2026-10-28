@@ -27,6 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "common/rings_models.h"
 #include "orings_meta.h"
 #include "rings/dsp/part.h"
 #include "rings/dsp/string_synth_part.h"
@@ -47,9 +48,7 @@ const int kMinStrumBlocks = 21;
 const int kQueue = 32;          // note-ons waiting for their strum
 const int kFadeBlocks = 16;     // 4 ms out, switch, 4 ms in (2 blocks = 1 ms)
 
-// What each MODEL value runs: a Part model, or the string synth with an FX.
-struct ModelDef { bool string_synth; int index; };
-extern const ModelDef kModels[kNumModels];
+static_assert(kNumModels == kModelCount, "metadata.py MODELS and common/rings_models.h differ");
 
 class ORings {
  public:

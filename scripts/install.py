@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""oRings installer: uploads dist/orings-module.tar.gz through the Schwung
-Manager's custom-module form (POST /modules/install-custom).
+"""oRings / oRings FX installer: uploads dist/<id>-module.tar.gz through the
+Schwung Manager's custom-module form (POST /modules/install-custom).
+
+  scripts/install.py http://move.local:7700                     oRings
+  scripts/install.py http://move.local:7700 --module orings-fx  oRings FX
 
 Copyright (c) 2026 Hiro Ikezawa. MIT License (see LICENSE).
 """
@@ -13,9 +16,10 @@ import urllib.parse
 import urllib.request
 import uuid
 
-ID = "orings"
+# Module id -> the DSP file inside its tarball.
+MODULES = {"orings": "dsp.so", "orings-fx": "orings-fx.so"}
 
-def install(base, package, check=False):
+def install(base, package, check=False, ID="orings"):
     parsed = urllib.parse.urlparse(base)
     if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.path not in ("", "/"):
         raise ValueError("Use a Manager base URL, e.g. http://move.local:7700")
@@ -37,9 +41,9 @@ def install(base, package, check=False):
             path = pathlib.PurePosixPath(member.name)
             if not path.parts or path.parts[0] != ID or ".." in path.parts or member.issym() or member.islnk():
                 raise ValueError("Package must contain only the " + ID + "/ directory")
-        dsp = archive.extractfile(ID + "/dsp.so").read()
+        dsp = archive.extractfile(ID + "/" + MODULES[ID]).read()
         if dsp[:6] != b"\x7fELF\x02\x01" or int.from_bytes(dsp[18:20], "little") != 183:
-            raise ValueError("Install requires the ARM64 dsp.so, never the desktop build")
+            raise ValueError("Install requires the ARM64 " + MODULES[ID] + ", never the desktop build")
     boundary = ID + "-" + uuid.uuid4().hex
     parts = []
     for name, value in [("csrf_token", token), ("source", "tarball")]:
@@ -62,11 +66,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url", nargs="?", default="http://move.local:7700")
     parser.add_argument("--check", action="store_true", help="Check connection only; upload nothing")
+    parser.add_argument("--module", choices=sorted(MODULES), default="orings")
     parser.add_argument("--package", type=pathlib.Path,
-                        default=pathlib.Path(__file__).resolve().parent.parent / "dist" / (ID + "-module.tar.gz"),
-                        help="Tarball to upload (default: dist/, e.g. one downloaded from Releases)")
+                        help="Tarball to upload (default: dist/<id>-module.tar.gz)")
     args = parser.parse_args()
+    package = args.package or (pathlib.Path(__file__).resolve().parent.parent / "dist" /
+                               (args.module + "-module.tar.gz"))
     try:
-        install(args.url, args.package, args.check)
+        install(args.url, package, args.check, args.module)
     except Exception as exc:
         parser.exit(1, str(exc) + "\n")

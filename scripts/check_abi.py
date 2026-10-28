@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Reject a dsp.so the Move cannot load, or one that could collide with a
-neighbour: AArch64, glibc <= 2.34, no libstdc++, one exported entry point."""
+neighbour: AArch64, glibc <= 2.34, no libstdc++, one exported entry point.
+
+  scripts/check_abi.py <module .so> <the one symbol it must export>"""
 import re
 import subprocess
 import sys
 
 path = sys.argv[1]
+entry = sys.argv[2] if len(sys.argv) > 2 else "move_plugin_init_v2"
 header = subprocess.check_output(["readelf", "-h", path], text=True)
 assert "AArch64" in header, "not an AArch64 build"
 
@@ -24,6 +27,6 @@ for line in symbols.splitlines():
     # Num: Value Size Type Bind Vis Ndx Name
     if len(f) >= 8 and f[4] in ("GLOBAL", "WEAK") and f[6] != "UND":
         exported.append(f[7])
-assert exported == ["move_plugin_init_v2"], f"unexpected exports: {exported}"
-print("PASS: AArch64, only move_plugin_init_v2 exported, NEEDED", needed,
+assert exported == [entry], f"unexpected exports: {exported}"
+print("PASS: AArch64, only", entry, "exported, NEEDED", needed,
       "max GLIBC", ".".join(map(str, max(glibc))))

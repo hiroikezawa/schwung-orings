@@ -44,6 +44,10 @@ inline float Interpolate(const float* table, float index, float size) {
   index *= size;
   MAKE_INTEGRAL_FRACTIONAL(index)
   float a = table[index_integral];
+  // oRings patch: an index exactly at a table's last entry (Rings does this
+  // with DAMPING at 1.0: lut_4_decades at 256 of 257 entries) would read one
+  // entry past the end with weight 0. Same value, without that read.
+  if (index_fractional == 0.0f) return a;
   float b = table[index_integral + 1];
   return a + (b - a) * index_fractional;
 }

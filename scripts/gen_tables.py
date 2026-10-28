@@ -88,6 +88,42 @@ for row in rows:
 out.append("};")
 out.append("")
 
+# --- oRings FX: Move's 44.1 kHz input -> Rings' 48 kHz (the IN jack). -----
+# 48000 / 44100 = 160 / 147: a fixed polyphase FIR, one phase per output
+# (UP_L = 160 phases, the phase advancing by UP_M = 147 per output, the input
+# position by floor((p + M) / L)) -- integer arithmetic, so nothing drifts.
+# The prototype is designed at L * 44.1 kHz and cut off at 20 kHz, below
+# both Nyquists, so the 48 kHz signal holds only what the 44.1 kHz one did.
+# Each phase is normalised to unity DC gain. UP_K taps per phase, stored
+# oldest-first for a forward dot product over the history.
+UP_L, UP_M, UP_K = 160, 147, 32
+UP_CUTOFF_HZ = 20000.0
+UP_BETA = 8.0
+assert 44100 * UP_L == 48000 * UP_M
+n = UP_L * UP_K
+fs_up = UP_L * 44100.0
+fcu = UP_CUTOFF_HZ / fs_up
+centre = (n - 1) / 2.0
+i0b = i0(UP_BETA)
+h = []
+for i in range(n):
+    t = i - centre
+    s_ = 2.0 * fcu if t == 0 else math.sin(2.0 * math.pi * fcu * t) / (math.pi * t)
+    w = i0(UP_BETA * math.sqrt(max(0.0, 1.0 - (t / centre) ** 2))) / i0b
+    h.append(s_ * w)
+up = []
+for ph in range(UP_L):
+    taps = [h[ph + k * UP_L] for k in range(UP_K)]
+    g = sum(taps)
+    up.extend(v / g for v in reversed(taps))
+# Group delay in 44.1 kHz input samples: the FIR's centre over L.
+out += ["#define ORINGS_UP_L %d" % UP_L,
+        "#define ORINGS_UP_M %d" % UP_M,
+        "#define ORINGS_UP_K %d" % UP_K,
+        "/* orings_up_table[p * K + k]: phase p, history oldest (k = 0) .. newest. */",
+        "static const float orings_up_table[ORINGS_UP_L * ORINGS_UP_K] = {",
+        fmt(up), "};", ""]
+
 path = pathlib.Path(sys.argv[1])
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text("\n".join(out))

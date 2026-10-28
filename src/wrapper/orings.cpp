@@ -12,24 +12,6 @@ namespace orings {
 using rings::PerformanceState;
 using rings::Patch;
 
-// MODEL order (metadata.py) -> Rings. Part models are rings::ResonatorModel;
-// string-synth entries are rings::FxType, which is what the hardware's model
-// buttons select while the easter egg is on (ui.cc: set_fx(model)).
-const ModelDef kModels[kNumModels] = {
-  {false, rings::RESONATOR_MODEL_MODAL},
-  {false, rings::RESONATOR_MODEL_SYMPATHETIC_STRING},
-  {false, rings::RESONATOR_MODEL_STRING},
-  {false, rings::RESONATOR_MODEL_STRING_AND_REVERB},           // Karplusverb
-  {false, rings::RESONATOR_MODEL_FM_VOICE},                    // 2-op FM
-  {false, rings::RESONATOR_MODEL_SYMPATHETIC_STRING_QUANTIZED},  // Western Chords
-  {true, rings::FX_FORMANT},
-  {true, rings::FX_CHORUS},
-  {true, rings::FX_REVERB},
-  {true, rings::FX_FORMANT_2},
-  {true, rings::FX_ENSEMBLE},
-  {true, rings::FX_REVERB_2},
-};
-
 namespace {
 
 // cv_scaler.cc channel_settings_: every pot is low-passed with 0.01 per
@@ -146,16 +128,9 @@ void ORings::ApplyModelNow() {
   }
 }
 
-// CvScaler::Read's chord hysteresis, verbatim, fed by the STRUCTURE value
-// (the hardware feeds it the unfiltered STRUCTURE pot + CV).
-void ORings::ApplyStructure() {
-  float chord = values_[P_STRUCTURE];
-  chord *= static_cast<float>(rings::kNumChords - 1);
-  const float hysteresis = chord - chord_ > 0.0f ? -0.1f : +0.1f;
-  chord_ = static_cast<int32_t>(chord + hysteresis + 0.5f);
-  if (chord_ < 0) chord_ = 0;
-  if (chord_ > rings::kNumChords - 1) chord_ = rings::kNumChords - 1;
-}
+// CvScaler::Read's chord hysteresis (common/rings_models.h), fed by the
+// STRUCTURE value (the hardware feeds it the unfiltered STRUCTURE pot + CV).
+void ORings::ApplyStructure() { chord_ = ChordHysteresis(values_[P_STRUCTURE], chord_); }
 
 bool ORings::SetParam(int id, float v) {
   if (id < 0 || id >= P_COUNT || !isfinite(v)) return false;

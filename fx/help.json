@@ -1,0 +1,106 @@
+{
+  "title": "oRings FX",
+  "children": [
+    {
+      "title": "Idea",
+      "lines": [
+        "The incoming audio",
+        "strikes a resonator:",
+        "a modal body or",
+        "strings ring at",
+        "FREQ and decay on",
+        "their own. The DSP",
+        "is the original",
+        "open-source Rings",
+        "code, run at 48 kHz."
+      ]
+    },
+    {
+      "title": "Main page",
+      "lines": [
+        "MIX: dry <-> wet.",
+        "0% = input as is.",
+        "STRUCT: partials /",
+        "string spacing.",
+        "BRIGHT: excitation",
+        "brightness.",
+        "DAMP: ring length.",
+        "POS: where it is",
+        "struck (timbre).",
+        "FREQ: resonator",
+        "note, C0..C7.",
+        "MODEL: see Models.",
+        "LEVEL: wet level."
+      ]
+    },
+    {
+      "title": "Models",
+      "lines": [
+        "MODAL: plates, bars,",
+        "bells. Hats ->",
+        "bell tones.",
+        "SYMPA: sympathetic",
+        "strings.",
+        "STRNG: inharmonic,",
+        "modulated string.",
+        "KVERB: Karplusverb.",
+        "FM: 2-op FM, input",
+        "envelope drives it.",
+        "CHORD: Western",
+        "Chords.",
+        "DP-*: Disastrous",
+        "Peace. The input",
+        "goes through its",
+        "effect; hits strum",
+        "the chord machine."
+      ]
+    },
+    {
+      "title": "Strum",
+      "lines": [
+        "A strum moves the",
+        "input to the next",
+        "voice and fires the",
+        "internal exciter.",
+        "AUTO: Rings' own",
+        "onset detector",
+        "(needs ~1 s to",
+        "settle).",
+        "MIDI: note-on =",
+        "strum.",
+        "OFF: never. The",
+        "input still rings",
+        "the resonator."
+      ]
+    },
+    {
+      "title": "Advanced page",
+      "lines": [
+        "IN GN: input level",
+        "into Rings.",
+        "SENS: onset",
+        "sensitivity (AUTO).",
+        "EXCITE: Rings' own",
+        "pluck/strike on",
+        "each strum, on top",
+        "of the input.",
+        "POLY: 1/2/4 voices.",
+        "ROUTE: STEREO, ODD",
+        "or EVEN only.",
+        "FINE: +-100 cents.",
+        "WIDTH: 0 = mono sum",
+        "-- = no effect now."
+      ]
+    },
+    {
+      "title": "Latency",
+      "lines": [
+        "Wet path: 72 samp.",
+        "(1.6 ms). The dry",
+        "path is delayed the",
+        "same, so the two",
+        "line up in the MIX."
+      ]
+    }
+  ]
+}
