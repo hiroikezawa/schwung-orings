@@ -37,6 +37,11 @@ ours() {  # ours <source>...: compiles our own sources, prints the objects
   done
 }
 mapfile -t synth < <(ours "$MODULE"/src/wrapper/*.cpp "$MODULE"/tests/test_engine.cpp)
+for f in "$MODULE"/src/phrase/*.c; do   # Phrase Gen's engine (the RANDOM pad)
+  o="$OBJ/phrase_$(basename "$f").o"
+  gcc -std=c11 -O1 -g -Wall -Wextra -Werror -I"$MODULE/src/phrase" -I"$GEN" "${SAN[@]}" -c "$f" -o "$o"
+  synth+=("$o")
+done
 g++ "${SAN[@]}" "${objs[@]}" "${synth[@]}" -o "$OUT/test-engine" -lm
 "$OUT/test-engine"
 
@@ -57,7 +62,7 @@ SHARED="${OR_SHARED:-}"
 if [[ ! -f "$ROOT/tools/param-pages/harness.mjs" ]]; then
   echo "SKIP: no Schwung checkout at $ROOT (set SCHWUNG_ROOT)" >&2
 else
-  for t in test_grid.mjs test_grid_fx.mjs; do
+  for t in test_ui.mjs test_grid_fx.mjs; do
     if command -v node >/dev/null 2>&1; then
       OR_SHARED="$SHARED" SCHWUNG_ROOT="$ROOT" node "$MODULE/tests/$t"
     else

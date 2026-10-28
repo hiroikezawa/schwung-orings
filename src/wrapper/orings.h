@@ -21,6 +21,12 @@
 //     easter egg) is a MODEL rather than a hidden gesture;
 //   * the ODD / EVEN jacks become the stereo output, then a 48 -> 44.1 kHz
 //     resampler.
+//
+// Around that, a performance layer (the same one as oBraids / oPlaits):
+// Rings is struck on every 1/16 of Move's transport whose trigger pad is on,
+// at the note the PITCH knob names in the Scale page's root + scale; knob
+// touches record motion while the REC pad is on; RANDOM writes a Phrase Gen
+// phrase into PITCH. MIDI notes still strike it as before.
 #ifndef ORINGS_ORINGS_H_
 #define ORINGS_ORINGS_H_
 
@@ -33,6 +39,8 @@
 #include "rings/dsp/string_synth_part.h"
 #include "rings/dsp/strummer.h"
 #include "rings/resampler.h"
+#include "wrapper/motion.h"
+#include "wrapper/random_phrase.h"
 
 namespace orings {
 
@@ -47,26 +55,54 @@ const size_t kReverbWords = 32768;
 const int kMinStrumBlocks = 21;
 const int kQueue = 32;          // note-ons waiting for their strum
 const int kFadeBlocks = 16;     // 4 ms out, switch, 4 ms in (2 blocks = 1 ms)
+const uint8_t kSeqVelocity = 100;   // an auto 1/16 strike
+
+// A stored parameter's id from its key or one of its labels (-1: none).
+int ParamIdOf(const char *key);
 
 static_assert(kNumModels == kModelCount, "metadata.py MODELS and common/rings_models.h differ");
 
 class ORings {
  public:
-  void Init();
+  void Init(uint32_t seed = 0x5A17C0DEu);
 
-  // Stored parameters, in their own units (metadata.py).
+  // Stored parameters, in their own units (metadata.py): the BASE value, the
+  // knob's. Effective() is what plays (motion playback overrides the base).
   bool SetParam(int id, float value);
   float GetParam(int id) const { return values_[id]; }
+  float Effective(int id) const { return ovr_[id] == ovr_[id] ? ovr_[id] : values_[id]; }
 
   // Any key the module serves: stored, alias (label) or trigger. Value text
   // is a number, or an option name for enums. False = unknown key/value.
+  // `effective`: the value playing rather than the knob's.
   bool SetByKey(const char *key, const char *value);
-  int GetByKey(const char *key, char *buf, int size) const;
+  int GetByKey(const char *key, char *buf, int size, bool effective = false) const;
 
+  // Notes, pitch bend, CC 120/121/123, and MIDI clock (used only when the
+  // host has no transport position).
   void Midi(const uint8_t *msg, int len);
 
-  // Out: Move's 44.1 kHz, stereo.
-  void Process(float *left, float *right, size_t frames);
+  // Out: Move's 44.1 kHz, stereo. `beat` = the host transport position in
+  // beats (< 0 stopped). The short form is a stopped transport.
+  void Process(float *left, float *right, size_t frames, double beat, float bpm,
+               bool host_has_transport);
+  void Process(float *left, float *right, size_t frames) {
+    Process(left, right, frames, -1.0, 120.0f, true);
+  }
+
+  // The pads and the knobs' touch sensors (ui_core.mjs).
+  void SetWrite(bool on) { motion_.set_write(on); }
+  bool write() const { return motion_.write(); }
+  void ToggleGate(int step);
+  uint16_t gates() const { return gates_; }
+  void Randomize();
+  void Touch(int param_id, bool down);
+  void ClearMotion(int param_id);   // -1 = all
+  int steps() const { return values_[P_STEPS] >= 0.5f ? 16 : 8; }
+  unsigned motion_mask() const { return motion_.Mask(); }
+  unsigned motion_recording() const { return motion_.Recording(); }
+  int motion_step() const { return motion_.step(); }
+  int PitchNote(float index) const;   // PITCH index -> MIDI note
 
   // Silence everything, keep the settings (RESET, MIDI All Sound Off).
   void Reset();
@@ -97,11 +133,18 @@ class ORings {
   void ApplyStructure();
   void ApplyModelNow();
   void InitParts();
-  void Enqueue(uint8_t note, uint8_t velocity);
+  void Enqueue(uint8_t note, uint8_t velocity, bool seq = false);
+  void Render(float *left, float *right, size_t frames);
+  Motion::Params MotionParams() { return Motion::Params{values_, ovr_}; }
+  void SetKey(int id, float value);
+  void MotionAt(double pos16);
+  void Hit(int64_t abs16);
+  double FallbackBeat() const;
   float VelocityGain(uint8_t velocity) const;
   void OutputMatrix(float *m) const;
 
   float values_[P_COUNT];
+  float ovr_[P_COUNT];  // motion playback, NAN = none
 
   rings::Part part_;
   rings::StringSynthPart string_synth_;
@@ -118,7 +161,9 @@ class ORings {
   float fm_cv_;
   int bend_;  // -8192..8191
 
-  struct Pending { uint8_t note, velocity; };
+  // `seq`: an auto 1/16 strike, which waits only for the Strummer's inhibit
+  // (SPREAD is for chords played from MIDI, and a 1/16 apart is far more).
+  struct Pending { uint8_t note, velocity; bool seq; };
   Pending queue_[kQueue];
   int queue_head_;
   int queue_count_;
@@ -141,6 +186,15 @@ class ORings {
   uint32_t recoveries_;
 
   float in_[kBlock];
+
+  Motion motion_;
+  Clock clock_;
+  RandomPhrase phrase_;
+  uint16_t gates_;        // bit n = step n+1 of 16 strikes
+  double last_pos16_;     // monotonic playhead (host beat jitter)
+  uint32_t frames_;       // since create: entropy for RANDOM
+  bool clk_running_, clk_awaiting_first_;
+  long long clk_ticks_;
 };
 
 }  // namespace orings

@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "wrapper/json_mini.h"
+#include "wrapper/scale.h"
+
 namespace orings {
 
 using rings::PerformanceState;
@@ -24,6 +27,20 @@ const float kOutCoefficient = 0.2f;
 // strings' drone (part.cc: notes[0] = tonic) is C2. On hardware the
 // FREQUENCY pot sets the same tonic: 12 + 0..60 semitones (cv_scaler.cc).
 const int kTonic = 36;
+const int kClocksPerBeat = 24;
+// Automation runs at control rate: every 16 samples (0.36 ms) and exactly on
+// each 1/16.
+const int kCtrlFrames = 16;
+const char kB64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+int B64Val(char c) {
+  if (c >= 'A' && c <= 'Z') return c - 'A';
+  if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+  if (c >= '0' && c <= '9') return c - '0' + 52;
+  if (c == '-') return 62;
+  if (c == '_') return 63;
+  return -1;
+}
 
 bool ParseNumber(const char *s, float *out) {
   char *end;
@@ -39,19 +56,6 @@ int OptionIndex(const char *const *names, int n, const char *value) {
   for (int i = 0; i < n; ++i)
     if (!strcmp(names[i], value)) return i;
   return -1;
-}
-
-const char *const kResetNames[] = {"-", "RESET"};
-
-// The option names of a stored enum, for name writes.
-bool EnumNames(int id, const char *const **names, int *n) {
-  switch (id) {
-    case P_MODEL: *names = kModelNames; *n = kNumModels; return true;
-    case P_POLY: *names = kPolyNames; *n = 4; return true;
-    case P_OUTPUT: *names = kOutputNames; *n = 4; return true;
-    case P_RESET: *names = kResetNames; *n = 2; return true;
-    default: return false;
-  }
 }
 
 int FindParam(const char *key) {
@@ -76,12 +80,29 @@ int Format(char *buf, int size, int n) {
 
 }  // namespace
 
-void ORings::Init() {
+int ParamIdOf(const char *key) {
+  if (!key) return -1;
+  const int id = FindParam(key);
+  if (id >= 0) return id;
+  const int a = FindAlias(key);
+  return a < 0 ? -1 : kAliases[a].param;
+}
+
+void ORings::Init(uint32_t seed) {
   // The firmware's Part / StringSynthPart are zero-initialised globals, and
   // Init() leaves some members to that (StringSynthPart::clear_fx_,
   // Part::step_counter_). The same start state here.
   memset(static_cast<void *>(this), 0, sizeof(*this));
-  for (int i = 0; i < P_COUNT; ++i) values_[i] = kParams[i].def;
+  for (int i = 0; i < P_COUNT; ++i) {
+    values_[i] = kParams[i].def;
+    ovr_[i] = NAN;
+  }
+  motion_.Init();
+  clock_.Init();
+  RandomPhrase::LibraryInit();   // once per process; a no-op after
+  phrase_.Init(seed);
+  gates_ = 0xFFFFu;
+  last_pos16_ = -1.0;
   InitParts();
   applied_model_ = model();
   applied_poly_ = static_cast<int>(values_[P_POLY]) + 1;
@@ -130,7 +151,12 @@ void ORings::ApplyModelNow() {
 
 // CvScaler::Read's chord hysteresis (common/rings_models.h), fed by the
 // STRUCTURE value (the hardware feeds it the unfiltered STRUCTURE pot + CV).
-void ORings::ApplyStructure() { chord_ = ChordHysteresis(values_[P_STRUCTURE], chord_); }
+void ORings::ApplyStructure() { chord_ = ChordHysteresis(Effective(P_STRUCTURE), chord_); }
+
+int ORings::PitchNote(float index) const {
+  return PitchMidi(static_cast<int>(index + 0.5f), static_cast<int>(values_[P_ROOT]),
+                   static_cast<int>(values_[P_SCALE]));
+}
 
 bool ORings::SetParam(int id, float v) {
   if (id < 0 || id >= P_COUNT || !isfinite(v)) return false;
@@ -141,6 +167,15 @@ bool ORings::SetParam(int id, float v) {
   if (id == P_RESET) {
     if (v >= 1.0f) Reset();
     return true;
+  }
+  if (id == P_ROOT || id == P_SCALE) {
+    SetKey(id, v);
+    return true;
+  }
+  if (id == P_PITCH) {
+    const float top = static_cast<float>(PitchCount(static_cast<int>(values_[P_ROOT]),
+                                                    static_cast<int>(values_[P_SCALE])) - 1);
+    if (v > top) v = top;
   }
   values_[id] = v;
   if (id == P_STRUCTURE) ApplyStructure();
@@ -156,10 +191,8 @@ bool ORings::SetByKey(const char *key, const char *text) {
   int id = FindParam(key);
   if (id >= 0) {
     if (ParseNumber(text, &v)) return SetParam(id, v);
-    const char *const *names;
-    int n;
-    if (!EnumNames(id, &names, &n)) return false;
-    const int i = OptionIndex(names, n, text);
+    if (!kEnumOptions[id].names) return false;
+    const int i = OptionIndex(kEnumOptions[id].names, kEnumOptions[id].count, text);
     return i >= 0 && SetParam(id, static_cast<float>(i));
   }
   const int a = FindAlias(key);
@@ -176,29 +209,117 @@ bool ORings::SetByKey(const char *key, const char *text) {
   return ParseNumber(text, &v) && SetParam(kAliases[a].param, v);
 }
 
-int ORings::GetByKey(const char *key, char *buf, int size) const {
+int ORings::GetByKey(const char *key, char *buf, int size, bool effective) const {
   if (!key || !buf || size <= 0) return -1;
   int id = FindParam(key);
   if (id < 0) {
     const int a = FindAlias(key);
     if (a < 0) return -1;
-    if (kAliases[a].chord) return Format(buf, size, snprintf(buf, size, "%d", chord_));
+    if (kAliases[a].chord) {
+      // What plays is the hysteresis' answer; the knob, the nearest chord.
+      const int c = effective ? chord_
+                              : static_cast<int>(values_[P_STRUCTURE] * (kNumChords - 1) + 0.5f);
+      return Format(buf, size, snprintf(buf, size, "%d", c));
+    }
     id = kAliases[a].param;
   }
   if (id == P_RESET) return Format(buf, size, snprintf(buf, size, "0"));
-  if (kParams[id].type == PT_FLOAT)
-    return Format(buf, size, snprintf(buf, size, "%.4f", values_[id]));
-  return Format(buf, size, snprintf(buf, size, "%d", static_cast<int>(values_[id])));
+  const float v = effective ? Effective(id) : values_[id];
+  if (kParams[id].type == PT_FLOAT) return Format(buf, size, snprintf(buf, size, "%.4f", v));
+  return Format(buf, size, snprintf(buf, size, "%d", static_cast<int>(v)));
 }
 
-void ORings::Enqueue(uint8_t note, uint8_t velocity) {
+// A new root or scale re-snaps PITCH -- the knob, what is playing, and every
+// recorded pitch point -- to the nearest note of the new scale, so the
+// strikes do not jump to whatever note now sits at the old index.
+void ORings::SetKey(int id, float value) {
+  const int r0 = static_cast<int>(values_[P_ROOT]), s0 = static_cast<int>(values_[P_SCALE]);
+  values_[id] = value;
+  const int r1 = static_cast<int>(values_[P_ROOT]), s1 = static_cast<int>(values_[P_SCALE]);
+  if (r0 == r1 && s0 == s1) return;
+  auto resnap = [&](float idx) {
+    return static_cast<float>(PitchIndexOfMidi(
+        static_cast<float>(PitchMidi(static_cast<int>(idx + 0.5f), r0, s0)), r1, s1));
+  };
+  values_[P_PITCH] = resnap(values_[P_PITCH]);
+  if (!isnan(ovr_[P_PITCH])) ovr_[P_PITCH] = resnap(ovr_[P_PITCH]);
+  uint16_t *lane = motion_.lane(Motion::LaneOf(P_PITCH));
+  for (int i = 0; i < Motion::kPoints; ++i) {
+    if (lane[i] == Motion::kEmpty) continue;
+    const float x = Motion::Denorm(P_PITCH, Motion::Dq(lane[i]));
+    lane[i] = Motion::Q(Motion::Norm(P_PITCH, resnap(x)));
+  }
+}
+
+void ORings::ToggleGate(int step) {
+  if (step >= 0 && step < 16) gates_ ^= static_cast<uint16_t>(1u << step);
+}
+
+void ORings::Touch(int param_id, bool down) {
+  const int k = Motion::LaneOf(param_id);
+  if (k >= 0) motion_.Touch(MotionParams(), k, down);
+}
+
+void ORings::ClearMotion(int param_id) {
+  const int k = param_id < 0 ? -1 : Motion::LaneOf(param_id);
+  if (param_id >= 0 && k < 0) return;
+  motion_.Clear(MotionParams(), k);
+}
+
+// The RANDOM pad: a new Phrase Gen phrase, written as PITCH automation --
+// each note set as a knob value of the scale in use (nearest note, moved to
+// ROOT), never quantized afterwards. Phrase Gen's sources span ~6 octaves,
+// so each note is folded by octaves into a window around the knob's own
+// note (a fifth below to 17 semitones above): the melody keeps its note
+// names, the PITCH knob sets its register. Every point of a step holds its
+// note.
+void ORings::Randomize() {
+  const int len = steps();
+  int notes[16];
+  if (!phrase_.Generate(len, frames_, notes)) return;
+  const int r = static_cast<int>(values_[P_ROOT]), sc = static_cast<int>(values_[P_SCALE]);
+  const int knob = PitchNote(values_[P_PITCH]);
+  int lo = knob - 7, hi = knob + 17;
+  if (lo < kPitchLo) { hi += kPitchLo - lo; lo = kPitchLo; }
+  if (hi > kPitchHi) { lo -= hi - kPitchHi; hi = kPitchHi; }
+  uint16_t *lane = motion_.lane(Motion::LaneOf(P_PITCH));
+  for (int st = 0; st < len; ++st) {
+    int n = notes[st];
+    if (n < 0) n = knob - r;
+    n += r;                                   // the phrases are in C
+    while (n > hi) n -= 12;
+    while (n < lo) n += 12;
+    while (n > kPitchHi) n -= 12;
+    while (n < kPitchLo) n += 12;
+    const uint16_t q = Motion::Q(Motion::Norm(
+        P_PITCH, static_cast<float>(PitchIndexOfMidi(static_cast<float>(n), r, sc))));
+    for (int j = 0; j < Motion::kSub; ++j) lane[st * Motion::kSub + j] = q;
+  }
+}
+
+void ORings::Enqueue(uint8_t note, uint8_t velocity, bool seq) {
   if (queue_count_ >= kQueue) return;  // a 32-note pile-up: drop the newest
-  queue_[(queue_head_ + queue_count_) % kQueue] = {note, velocity};
+  queue_[(queue_head_ + queue_count_) % kQueue] = {note, velocity, seq};
   ++queue_count_;
 }
 
 void ORings::Midi(const uint8_t *msg, int len) {
   if (!msg || len < 1) return;
+  if (msg[0] >= 0xF8) {                    // realtime: the fallback clock
+    switch (msg[0]) {
+      case 0xFA: clk_running_ = true; clk_awaiting_first_ = true; clk_ticks_ = 0; break;
+      case 0xFB: clk_running_ = true; break;
+      case 0xFC: clk_running_ = false; break;
+      case 0xF8:
+        if (!clk_running_) { clk_running_ = true; clk_awaiting_first_ = true; }
+        if (clk_awaiting_first_) { clk_awaiting_first_ = false; clk_ticks_ = 0; }
+        else ++clk_ticks_;
+        break;
+      default: break;
+    }
+    return;
+  }
+  if (msg[0] >= 0xF0) return;
   const uint8_t status = msg[0] & 0xF0;
   const uint8_t d1 = len > 1 ? msg[1] & 0x7F : 0;
   const uint8_t d2 = len > 2 ? msg[2] & 0x7F : 0;
@@ -231,7 +352,7 @@ void ORings::Reset() {
 float ORings::VelocityGain(uint8_t velocity) const {
   const float v = static_cast<float>(velocity) / 127.0f;
   const float response = values_[P_VELO] * 0.01f;
-  return values_[P_EXCITER] * 0.01f * (1.0f - response * (1.0f - v));
+  return Effective(P_EXCITER) * 0.01f * (1.0f - response * (1.0f - v));
 }
 
 void ORings::OutputMatrix(float *m) const {
@@ -272,7 +393,7 @@ void ORings::RenderBlock(float *out, float *aux) {
 
   float gain = 1.0f;
   if (queue_count_ && fade_ != 1) {
-    int need = static_cast<int>(values_[P_SPREAD]) * 2;  // 2 blocks per ms
+    int need = queue_[queue_head_].seq ? 0 : static_cast<int>(values_[P_SPREAD]) * 2;  // 2 blocks per ms
     if (need < kMinStrumBlocks) need = kMinStrumBlocks;
     if (blocks_since_strum_ >= need) {
       const Pending p = queue_[queue_head_];
@@ -302,10 +423,10 @@ void ORings::RenderBlock(float *out, float *aux) {
   ps.chord = chord_;
 
   Patch patch;
-  pot_[0] += kPotCoefficient * (values_[P_STRUCTURE] - pot_[0]);
-  pot_[1] += kPotCoefficient * (values_[P_BRIGHTNESS] - pot_[1]);
-  pot_[2] += kPotCoefficient * (values_[P_DAMPING] - pot_[2]);
-  pot_[3] += kPotCoefficient * (values_[P_POSITION] - pot_[3]);
+  pot_[0] += kPotCoefficient * (Effective(P_STRUCTURE) - pot_[0]);
+  pot_[1] += kPotCoefficient * (Effective(P_BRIGHTNESS) - pot_[1]);
+  pot_[2] += kPotCoefficient * (Effective(P_DAMPING) - pot_[2]);
+  pot_[3] += kPotCoefficient * (Effective(P_POSITION) - pot_[3]);
   // cv_scaler.cc ATTENUVERT ranges.
   patch.structure = pot_[0] < 0.9995f ? pot_[0] : 0.9995f;
   patch.brightness = pot_[1];
@@ -353,7 +474,74 @@ void ORings::RenderBlock(float *out, float *aux) {
   }
 }
 
-void ORings::Process(float *left, float *right, size_t frames) {
+// ---- the auto 1/16 -------------------------------------------------------------
+
+double ORings::FallbackBeat() const {
+  if (!clk_running_ || clk_awaiting_first_) return -1.0;
+  return static_cast<double>(clk_ticks_) / kClocksPerBeat;
+}
+
+// The playhead never steps backwards by less than a 1/16 (that is host
+// jitter, not a new Play).
+void ORings::MotionAt(double pos16) {
+  if (pos16 >= 0.0 && last_pos16_ >= 0.0 && pos16 < last_pos16_ && pos16 > last_pos16_ - 1.0)
+    pos16 = last_pos16_;
+  last_pos16_ = pos16;
+  motion_.Update(MotionParams(), pos16, steps());
+}
+
+// A trigger step: a strike at the note PITCH names, at the start of this
+// 1/16. Rings has no gate, so a step whose pad is off simply does not strike.
+void ORings::Hit(int64_t abs16) {
+  const int len = steps();
+  const int step = static_cast<int>(((abs16 % len) + len) % len);
+  if (!((gates_ >> step) & 1u)) return;
+  Enqueue(static_cast<uint8_t>(PitchNote(Effective(P_PITCH))), kSeqVelocity, true);
+}
+
+void ORings::Process(float *left, float *right, size_t frames, double beat, float bpm,
+                     bool host_has_transport) {
+  const int n = static_cast<int>(frames);
+  if (!host_has_transport) beat = FallbackBeat();
+  if (!(bpm >= 20.0f && bpm <= 999.0f)) bpm = 120.0f;
+  const double spb = 44100.0 * 60.0 / bpm;
+  frames_ += static_cast<uint32_t>(n);
+  motion_.Age(n);
+
+  const bool was_running = clock_.running;
+  int offsets[Clock::kMaxEvents];
+  const int events = clock_.Advance(beat, bpm, n, offsets);
+  if (!clock_.running) {
+    last_pos16_ = -1.0;
+    MotionAt(-1.0);
+  } else if (!was_running) {
+    last_pos16_ = -1.0;                  // a new Play
+  }
+
+  // Split the block at each 1/16 so a strike lands on its sample, and step
+  // the automation to the strike's exact 1/16 first, so PITCH and the knobs
+  // are the values at the start of that step.
+  int pos = 0;
+  auto span = [&](int to) {
+    while (pos < to) {
+      int m = to - pos;
+      if (m > kCtrlFrames) m = kCtrlFrames;
+      if (clock_.running) MotionAt((beat + pos / spb) * 4.0);
+      Render(left + pos, right + pos, static_cast<size_t>(m));
+      pos += m;
+    }
+  };
+  for (int k = 0; k < events; ++k) {
+    span(offsets[k]);
+    const int64_t abs16 = clock_.last_abs - (events - 1 - k);
+    if (last_pos16_ > static_cast<double>(abs16)) last_pos16_ = -1.0;   // restart
+    MotionAt(static_cast<double>(abs16));
+    Hit(abs16);
+  }
+  span(n);
+}
+
+void ORings::Render(float *left, float *right, size_t frames) {
   float out[kBlock], aux[kBlock];
   for (size_t n = 0; n < frames; ++n) {
     while (resampler_.NeedsInput()) {
@@ -387,7 +575,17 @@ void ORings::Process(float *left, float *right, size_t frames) {
   }
 }
 
+// ---- state ----------------------------------------------------------------------
+//
+// {"v":1,"level":0.7000,"structure":0.2500,...,"model":0,...,
+//  "m":"<key>:<data>;...","g":65535}
+// "m" carries only lanes that hold automation: Motion::kPoints 12-bit values
+// normalized over the parameter's range, two base64url characters each
+// (4095 = not written); "g" the trigger pads. A key the state lacks returns
+// to its default (a state written by 0.1.0 has no motion and every pad on).
+
 int ORings::WriteState(char *buf, int size) const {
+  if (!buf || size <= 0) return -1;
   int n = snprintf(buf, size, "{\"v\":1");
   for (int i = 0; i < P_COUNT && n >= 0 && n < size; ++i) {
     if (i == P_RESET) continue;
@@ -396,25 +594,110 @@ int ORings::WriteState(char *buf, int size) const {
     else
       n += snprintf(buf + n, size - n, ",\"%s\":%d", kParams[i].key, static_cast<int>(values_[i]));
   }
-  if (n >= 0 && n < size) n += snprintf(buf + n, size - n, "}");
+  if (n >= 0 && n < size) n += snprintf(buf + n, size - n, ",\"m\":\"");
+  const unsigned mask = motion_.Mask();
+  bool first = true;
+  for (int k = 0; k < Motion::kLanes && n >= 0 && n < size; ++k) {
+    if (!(mask & (1u << k))) continue;
+    n += snprintf(buf + n, size - n, "%s%s:", first ? "" : ";", kParams[Motion::kParam[k]].key);
+    first = false;
+    if (n < 0 || n + 2 * Motion::kPoints >= size) return Format(buf, size, -1);
+    const uint16_t *lane = motion_.lane(k);
+    for (int i = 0; i < Motion::kPoints; ++i) {
+      const int q = lane[i] == Motion::kEmpty ? 4095 : lane[i];
+      buf[n++] = kB64[q >> 6];
+      buf[n++] = kB64[q & 63];
+    }
+    buf[n] = 0;
+  }
+  if (n >= 0 && n < size) n += snprintf(buf + n, size - n, "\",\"g\":%u}", gates_);
   return Format(buf, size, n);
 }
 
-bool ORings::ReadState(const char *json) {
-  if (!json || !strstr(json, "\"v\":1")) return false;
-  for (int i = 0; i < P_COUNT; ++i) {
-    if (i == P_RESET) continue;
-    char pattern[40];
-    snprintf(pattern, sizeof(pattern), "\"%s\":", kParams[i].key);
-    const char *at = strstr(json, pattern);
-    float v = kParams[i].def;  // a key the state lacks returns to its default
-    if (at) {
-      char *end;
-      const float parsed = strtof(at + strlen(pattern), &end);
-      if (end != at + strlen(pattern) && isfinite(parsed)) v = parsed;
+bool ORings::ReadState(const char *text) {
+  if (!text) return false;
+  const size_t len = strnlen(text, 65536);
+  if (len == 0 || len >= 65536) return false;
+  const char *end = text + len;
+  const char *p = json::SkipWs(text, end);
+  if (p >= end || *p != '{') return false;
+  const char *root_end = json::ContainerEnd(p, end);
+  if (!root_end) return false;
+  float f;
+  const char *vp = json::FindMember(p, root_end, "v");
+  if (!vp || !json::ReadNumber(vp, root_end, &f) || f != 1.0f) return false;
+
+  // Motion first, into scratch: a malformed lane refuses the whole "m".
+  static uint16_t scratch[Motion::kLanes][Motion::kPoints];   // one SPI thread only
+  for (int k = 0; k < Motion::kLanes; ++k)
+    for (int i = 0; i < Motion::kPoints; ++i) scratch[k][i] = Motion::kEmpty;
+  bool have_m = false;
+  const char *mp = json::FindMember(p, root_end, "m");
+  if (mp && *mp == '"') {
+    const char *q = mp + 1;
+    have_m = true;
+    unsigned seen = 0;
+    while (q < root_end && *q != '"') {
+      const char *colon = static_cast<const char *>(memchr(q, ':', root_end - q));
+      if (!colon || colon - q >= 24) { have_m = false; break; }
+      char key[24];
+      memcpy(key, q, colon - q);
+      key[colon - q] = 0;
+      const int id = FindParam(key);
+      const int k = id < 0 ? -1 : Motion::LaneOf(id);
+      if (id < 0 || colon + 1 + 2 * Motion::kPoints > root_end) { have_m = false; break; }
+      if (k >= 0 && (seen & (1u << k))) { have_m = false; break; }
+      q = colon + 1;
+      if (k < 0) {
+        // A parameter that is not recorded (a lane from a later version):
+        // its lane is dropped, and the others are kept.
+        q += 2 * Motion::kPoints;
+        if (*q == ';') ++q;
+        else if (*q != '"') { have_m = false; break; }
+        continue;
+      }
+      seen |= 1u << k;
+      for (int i = 0; i < Motion::kPoints; ++i) {
+        const int hi = B64Val(q[0]), lo = hi < 0 ? -1 : B64Val(q[1]);
+        if (hi < 0 || lo < 0) { have_m = false; break; }
+        const int x = hi * 64 + lo;
+        scratch[k][i] = x == 4095 ? Motion::kEmpty
+                                  : static_cast<uint16_t>(x > Motion::kQMax ? Motion::kQMax : x);
+        q += 2;
+      }
+      if (!have_m) break;
+      if (*q == ';') ++q;
+      else if (*q != '"') { have_m = false; break; }
     }
-    SetParam(i, v);
   }
+
+  auto value = [&](int id) {
+    const char *val = json::FindMember(p, root_end, kParams[id].key);
+    float x;
+    return val && json::ReadNumber(val, root_end, &x) ? x : kParams[id].def;
+  };
+  // Root and scale first, as they are (no re-snap): PITCH is clamped to the
+  // scale in force.
+  static const int kKey[2] = {P_ROOT, P_SCALE};
+  for (int id : kKey) {
+    float x = value(id);
+    if (!isfinite(x)) x = kParams[id].def;
+    x = floorf(x + 0.5f);
+    if (x < kParams[id].min) x = kParams[id].min;
+    if (x > kParams[id].max) x = kParams[id].max;
+    values_[id] = x;
+  }
+  for (int i = 0; i < P_COUNT; ++i) {
+    if (i == P_RESET || i == P_ROOT || i == P_SCALE) continue;
+    SetParam(i, value(i));
+  }
+  const char *gp = json::FindMember(p, root_end, "g");
+  gates_ = 0xFFFFu;
+  if (gp && json::ReadNumber(gp, root_end, &f) && f == floorf(f) && f >= 0.0f && f <= 65535.0f)
+    gates_ = static_cast<uint16_t>(f);
+  motion_.Clear(MotionParams(), -1);
+  if (have_m)
+    for (int k = 0; k < Motion::kLanes; ++k) memcpy(motion_.lane(k), scratch[k], sizeof(scratch[k]));
   return true;
 }
 

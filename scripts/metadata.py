@@ -2,9 +2,10 @@
 """The one place oRings' parameters are defined.
 
   scripts/metadata.py <generated dir>   writes orings_meta.h (the C++ table,
-                                        chain_params and ui_hierarchy as
-                                        strings) and rewrites module.json's
-                                        capabilities from the same lists.
+                                        chain_params and the grid hierarchy
+                                        as strings), rewrites module.json's
+                                        chain_params and writes ui_params.mjs
+                                        (the same lists, for ui_core.mjs).
 
 Two kinds of entry:
   * STORED parameters (PARAMS): what the module keeps and saves.
@@ -13,20 +14,26 @@ Two kinds of entry:
     modes give its four macro knobs different jobs (2-op FM: STRUCTURE is the
     frequency ratio, POSITION the feedback; Disastrous Peace: STRUCTURE picks
     the chord, DAMPING shapes the envelope, POSITION drives the effect...).
-    Each label is a param entry in ui_hierarchy with a `visible_if` on
+    Each label is a param entry in the grid hierarchy with a `visible_if` on
     `model`, so exactly one label per knob is visible for any MODEL and the
-    stock knob grid always shows eight cells. Labels are never stored.
+    knob grid always shows eight cells. Labels are never stored.
+
+The grid hierarchy is served as `grid_hierarchy`, and `ui_hierarchy` EMPTY:
+the shadow UI then opens ui_chain.js, which drives Schwung's own page engine
+itself so that the module sees the knobs' touch sensors (motion recording)
+and can take the pads.
 
 Copyright (c) 2026 Hiro Ikezawa. MIT License (see LICENSE).
 """
 import json
+import re
 import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # MODEL, in the order the knob steps through it. Rings model / easter-egg FX
-# index for each is in src/wrapper/orings.cpp (kModels).
+# index for each is in src/common/rings_models.h (kModels).
 MODELS = [
     ("MODAL", "Modal Resonator"),
     ("SYMPA", "Sympathetic Strings"),
@@ -47,18 +54,33 @@ M = {short: i for i, (short, _) in enumerate(MODELS)}
 # (rings/dsp/dsp.h defines it), named as Bryan Noll's comments name them.
 CHORDS = ["OCT", "5", "sus4", "m", "m7", "m9", "m11", "69", "M9", "M7", "M"]
 
+ROOTS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+# src/wrapper/scale.cpp kScaleNames, read so the two cannot disagree.
+_scale_src = (ROOT / "src" / "wrapper" / "scale.cpp").read_text()
+SCALES = re.findall(r'"(\w+)"', _scale_src.split("kScaleNames[kScaleCount] = {", 1)[1].split("};", 1)[0])
+assert len(SCALES) == 12, SCALES
+# PITCH is a scale-note INDEX between C1 and C6 (scale.h): 60 in the C++
+# table (a chromatic scale's top), the CURRENT scale's top where it is
+# served; module.json carries C Phrygian's (35), the default. 14 = C3.
+PITCH_TABLE_MAX, PITCH_SERVED_MAX = 60, 35
+
 # id, key, name, short_name, type, min, max, step, default, extra
+# In the knob grid's page order:
+#   main   VOLUME STRUCT BRIGHT DAMP POS POLY MODEL PITCH
+#   Rings  FREQ FINE EXCITE SPREAD VELO BEND OUTPUT GAIN
+#   Scale  ROOT SCALE STEPS RESET
 PARAMS = [
-    ("FREQ", "frequency", "Frequency", "FREQ", "int", -24, 24, 1, 0, {"unit": "st"}),
+    ("LEVEL", "level", "Volume", "VOLUME", "float", 0, 1, 0.01, 0.7, {}),
     ("STRUCTURE", "structure", "Structure", "STRUCT", "float", 0, 1, 0.01, 0.25, {}),
     ("BRIGHTNESS", "brightness", "Brightness", "BRIGHT", "float", 0, 1, 0.01, 0.5, {}),
     ("DAMPING", "damping", "Damping", "DAMP", "float", 0, 1, 0.01, 0.5, {}),
     ("POSITION", "position", "Position", "POS", "float", 0, 1, 0.01, 0.25, {}),
-    ("MODEL", "model", "Model", "MODEL", "enum", 0, len(MODELS) - 1, 1, 0,
-     {"options": [m[0] for m in MODELS]}),
     ("POLY", "polyphony", "Polyphony", "POLY", "enum", 0, 3, 1, 1,
      {"options": ["1", "2", "3", "4"]}),
-    ("LEVEL", "level", "Level", "LEVEL", "float", 0, 1, 0.01, 0.7, {}),
+    ("MODEL", "model", "Model", "MODEL", "enum", 0, len(MODELS) - 1, 1, 0,
+     {"options": [m[0] for m in MODELS]}),
+    ("PITCH", "pitch", "Pitch", "PITCH", "int", 0, PITCH_TABLE_MAX, 1, 14, {}),
+    ("FREQ", "frequency", "Frequency", "FREQ", "int", -24, 24, 1, 0, {"unit": "st"}),
     ("FINE", "fine", "Fine Tune", "FINE", "int", -100, 100, 1, 0, {"unit": "ct"}),
     ("EXCITER", "exciter", "Exciter Level", "EXCITE", "int", 0, 200, 1, 100, {"unit": "%"}),
     ("SPREAD", "spread", "Strum Spread", "SPREAD", "int", 10, 200, 1, 10, {"unit": "ms"}),
@@ -67,9 +89,17 @@ PARAMS = [
     ("OUTPUT", "output", "Output", "OUTPUT", "enum", 0, 3, 1, 0,
      {"options": ["STEREO", "SUM", "ODD", "EVEN"]}),
     ("GAIN", "gain", "Gain", "GAIN", "int", -24, 12, 1, 0, {"unit": "dB"}),
+    ("ROOT", "root", "Root", "ROOT", "enum", 0, 11, 1, 0, {"options": ROOTS}),
+    ("SCALE", "scale", "Scale", "SCALE", "enum", 0, 11, 1, 0, {"options": SCALES}),
+    ("STEPS", "steps", "Steps", "STEPS", "enum", 0, 1, 1, 0, {"options": ["8", "16"]}),
     ("RESET", "reset", "Reset", "RESET", "enum", 0, 1, 1, 0,
      {"options": ["-", "RESET"], "access": "write"}),
 ]
+
+# The parameters a knob TOUCH records (src/wrapper/motion.h), lane k = bit k
+# of every mask. New lanes go at the END (saved states name their lanes, but
+# the UI's masks are positional).
+LANES = ["structure", "brightness", "damping", "position", "pitch", "exciter"]
 P = {p[0]: i for i, p in enumerate(PARAMS)}
 
 # key, stored id, name, short_name, condition on model, as_chord
@@ -101,9 +131,10 @@ ALIASES = [
     ("reverb_2", "POSITION", "Reverb", "REVERB", {"equals": M["DP-R2"]}, False),
 ]
 
-PAGE1 = ["frequency", "*structure", "*brightness", "*damping", "*position",
-         "model", "polyphony", "level"]
-PAGE2 = ["fine", "exciter", "spread", "velocity", "bend_range", "output", "gain", "reset"]
+PAGE1 = ["level", "*structure", "*brightness", "*damping", "*position",
+         "polyphony", "model", "pitch"]
+PAGE2 = ["frequency", "fine", "exciter", "spread", "velocity", "bend_range", "output", "gain"]
+PAGE3 = ["root", "scale", "steps", "reset"]
 
 
 def alias_group(stored_key):
@@ -133,7 +164,8 @@ def chain_params():
             if "access" in extra:
                 e["access"] = extra["access"]
         else:
-            e.update({"min": lo, "max": hi, "step": step, "default": default})
+            e.update({"min": lo, "max": PITCH_SERVED_MAX if key == "pitch" else hi,
+                      "step": step, "default": default})
             if "unit" in extra:
                 e["unit"] = extra["unit"]
         out.append(e)
@@ -149,7 +181,7 @@ def chain_params():
     return out
 
 
-def ui_hierarchy():
+def grid_hierarchy():
     def expand(page):
         keys, params = [], []
         for k in page:
@@ -163,12 +195,15 @@ def ui_hierarchy():
         return keys, params
     k1, p1 = expand(PAGE1)
     k2, p2 = expand(PAGE2)
+    k3, p3 = expand(PAGE3)
     return {
         "modes": None,
         "levels": {
             "root": {"label": "oRings", "knobs": k1,
-                     "params": p1 + [{"level": "advanced", "label": "Advanced"}]},
-            "advanced": {"label": "Advanced", "knobs": k2, "params": p2},
+                     "params": p1 + [{"level": "rings", "label": "Rings"},
+                                     {"level": "scale", "label": "Scale"}]},
+            "rings": {"label": "Rings", "knobs": k2, "params": p2},
+            "scale": {"label": "Scale", "knobs": k3, "params": p3},
         },
     }
 
@@ -179,10 +214,18 @@ def c_string(s):
 
 def main():
     check_aliases()
+    keys = [p[1] for p in PARAMS]
+    assert all(k in keys for k in LANES), LANES
     gen = pathlib.Path(sys.argv[1])
     gen.mkdir(parents=True, exist_ok=True)
-    cp = json.dumps(chain_params(), separators=(",", ":"))
-    uh = json.dumps(ui_hierarchy(), separators=(",", ":"))
+    cp_list = chain_params()
+    cp = json.dumps(cp_list, separators=(",", ":"))
+    # Split around PITCH's max: the plugin serves the current scale's.
+    marker = '"key":"pitch","name":"Pitch","short_name":"PITCH","type":"int","min":0,"max":'
+    assert cp.count(marker) == 1 and cp[cp.index(marker) + len(marker):].startswith(f"{PITCH_SERVED_MAX},")
+    cut = cp.index(marker) + len(marker)
+    cp_head, cp_tail = cp[:cut], cp[cut + len(str(PITCH_SERVED_MAX)):]
+    gh = json.dumps(grid_hierarchy(), separators=(",", ":"))
     lines = ["/* Generated by scripts/metadata.py. Do not edit. */", "#pragma once", "",
              "namespace orings {", "",
              "enum ParamId {"]
@@ -194,6 +237,20 @@ def main():
         t = {"int": "PT_INT", "float": "PT_FLOAT", "enum": "PT_ENUM"}[typ]
         lines.append(f'  {{"{key}", {t}, {float(lo)!r}f, {float(hi)!r}f, {float(default)!r}f}},')
     lines += ["};", "",
+              "/* An enum's option names (name writes); NULL for the other types. */",
+              "struct EnumOptions { const char *const *names; int count; };"]
+    for pid, key, *_r, extra in PARAMS:
+        if "options" in extra:
+            lines.append(f"static const char *const kOpt_{key}[] = {{" +
+                         ", ".join(c_string(o) for o in extra["options"]) + "};")
+    lines.append("static const EnumOptions kEnumOptions[P_COUNT] = {")
+    for pid, key, *_r, extra in PARAMS:
+        lines.append(f"  {{kOpt_{key}, {len(extra['options'])}}}," if "options" in extra else "  {nullptr, 0},")
+    lines += ["};", "",
+              "/* The parameters a knob touch records: lane k (motion.h). */",
+              f"static const int kNumLanes = {len(LANES)};",
+              "static const int kLaneParams[kNumLanes] = {" +
+              ", ".join("P_" + next(p[0] for p in PARAMS if p[1] == k) for k in LANES) + "};", "",
               "/* A second key for a stored parameter (its name in some MODELs). */",
               "struct AliasDef { const char *key; int param; bool chord; };",
               f"static const int kNumAliases = {sum(1 for a in ALIASES if a[0] != next(p[1] for p in PARAMS if p[0] == a[1]))};",
@@ -207,19 +264,34 @@ def main():
               f"static const int kNumChords = {len(CHORDS)};",
               "static const char *const kModelNames[] = {" + ", ".join(c_string(m[0]) for m in MODELS) + "};",
               "static const char *const kChordNames[] = {" + ", ".join(c_string(c) for c in CHORDS) + "};",
-              "static const char *const kPolyNames[] = {\"1\", \"2\", \"3\", \"4\"};",
-              "static const char *const kOutputNames[] = {\"STEREO\", \"SUM\", \"ODD\", \"EVEN\"};",
               "",
-              "static const char kChainParams[] = " + c_string(cp) + ";",
-              "static const char kUiHierarchy[] = " + c_string(uh) + ";",
+              "/* chain_params = head + <PITCH max> + tail. */",
+              "static const char kChainParamsHead[] = " + c_string(cp_head) + ";",
+              "static const char kChainParamsTail[] = " + c_string(cp_tail) + ";",
+              "static const char kGridHierarchy[] = " + c_string(gh) + ";",
               "", "}  // namespace orings", ""]
     (gen / "orings_meta.h").write_text("\n".join(lines))
 
     mpath = ROOT / "module.json"
     manifest = json.loads(mpath.read_text())
-    manifest["capabilities"]["chain_params"] = chain_params()
-    manifest["capabilities"]["ui_hierarchy"] = ui_hierarchy()
+    manifest["capabilities"]["chain_params"] = cp_list
+    # The grid is ui_chain.js's (see the docstring): no stock hierarchy.
+    manifest["capabilities"].pop("ui_hierarchy", None)
     mpath.write_text(json.dumps(manifest, indent=2, ensure_ascii=True) + "\n")
+
+    alias_base = {a[0]: next(p[1] for p in PARAMS if p[0] == a[1]) for a in ALIASES}
+    main_modal = [alias_group(k[1:])[0][0] if k.startswith("*") else k for k in PAGE1]
+    ui = ["/* Generated by scripts/metadata.py. Do not edit. */",
+          "export const PARAMS = " + json.dumps(cp_list, indent=1) + ";",
+          "export const MODEL_NAMES = " + json.dumps([m[0] for m in MODELS]) + ";",
+          "/* label key -> the stored parameter it turns */",
+          "export const ALIAS_BASE = " + json.dumps(alias_base) + ";",
+          "/* bit k of the DSP's motion masks */",
+          "export const MOTION_KEYS = " + json.dumps(LANES) + ";",
+          "/* page 1, MODAL */",
+          "export const MAIN_KEYS = " + json.dumps(main_modal) + ";",
+          ""]
+    (ROOT / "ui_params.mjs").write_text("\n".join(ui))
 
 
 if __name__ == "__main__":

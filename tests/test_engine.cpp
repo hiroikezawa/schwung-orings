@@ -10,6 +10,7 @@
 #include "analysis.h"
 #include "stmlib/utils/random.h"
 #include "wrapper/orings.h"
+#include "wrapper/scale.h"
 
 using namespace orings;
 
@@ -632,6 +633,277 @@ static void TestSoak() {
         e.recoveries(), e.strums(), e.swallowed());
 }
 
+// ---------------------------------------------------------------------------
+// The performance layer: auto 1/16 strikes, trigger pads, touch motion,
+// RANDOM, the scale-index PITCH, and their state.
+// ---------------------------------------------------------------------------
+static Audio RenderPlaying(ORings &e, float seconds, double *beat, float bpm = 120.0f, Audio *append = NULL) {
+  Audio a;
+  Audio &out = append ? *append : a;
+  const size_t n = static_cast<size_t>(seconds * kRate);
+  float l[128], r[128];
+  for (size_t done = 0; done < n;) {
+    const size_t k = n - done < 128 ? n - done : 128;
+    e.Process(l, r, k, *beat, bpm, true);
+    *beat += k / kRate * bpm / 60.0;
+    out.l.insert(out.l.end(), l, l + k);
+    out.r.insert(out.r.end(), r, r + k);
+    done += k;
+  }
+  return a;
+}
+
+static bool InPhrygian(int midi) {
+  const int pc = midi % 12;
+  return pc == 0 || pc == 1 || pc == 3 || pc == 5 || pc == 7 || pc == 8 || pc == 10;
+}
+
+static void SetF(ORings &e, int id, float v) { e.SetParam(id, v); }
+
+static void TestAutoSixteenths() {
+  ORings &e = g_a;
+  Fresh(e);
+  Set(e, "output", "SUM");
+  Audio x = Render(e, 0.5f);
+  CHECK(Peak(x.l) == 0.0, "seq: silent with the transport stopped");
+  double beat = 0.0;
+  const uint32_t s0 = e.strums();
+  x = RenderPlaying(e, 1.0f, &beat);
+  CHECK(Rms(x.l) > 0.01 && e.strums() - s0 == 8, "seq: 1 s at 120 BPM = 8 strikes (%u), rms %.4f",
+        e.strums() - s0, Rms(x.l));
+  CHECK(e.swallowed() == 0, "seq: no strike swallowed");
+
+  // PITCH is the note: G2 (MIDI 43) through the FM sine.
+  Fresh(e);
+  FmSine(e);
+  SetF(e, P_PITCH, static_cast<float>(PitchIndexOfMidi(43.0f, 0, 0)));
+  CHECK(e.PitchNote(e.GetParam(P_PITCH)) == 43, "seq: PITCH index -> G2");
+  beat = 0.0;
+  x = RenderPlaying(e, 0.6f, &beat);
+  const double f = Pitch(x.l, 2000, 3000, MidiHz(43) * 0.8, MidiHz(43) * 1.25);
+  CHECK(fabs(Cents(f, MidiHz(43))) < 2.0, "seq: PITCH G2 strikes at %.2f Hz (want %.2f)", f, MidiHz(43));
+
+  // Every pad off: no strike; one pad on: one strike a bar.
+  Fresh(e);
+  for (int i = 0; i < 16; ++i) e.ToggleGate(i);
+  CHECK(e.gates() == 0, "seq: gates %04x", e.gates());
+  beat = 0.0;
+  const uint32_t s1 = e.strums();
+  RenderPlaying(e, 4.0f, &beat);
+  CHECK(e.strums() == s1, "seq: all trigger pads off -> no strike (%u)", e.strums() - s1);
+  e.ToggleGate(0);
+  // Beats 8..16, step 1 every 2 beats: 10, 12, 14 (the 1/16 at 8.0 itself
+  // fired at the end of the previous render, with every pad off).
+  RenderPlaying(e, 4.0f, &beat);
+  CHECK(e.strums() - s1 == 3, "seq: one pad on, 8-step loop, beats 8..16 -> 3 strikes (%u)", e.strums() - s1);
+  // MIDI still plays alongside (pads off again, so only the note strikes).
+  e.ToggleGate(0);
+  RenderPlaying(e, 0.1f, &beat);   // the step-1 strike queued at beat 16.0 lands
+  const uint32_t s2 = e.strums();
+  Note(e, 60);
+  RenderPlaying(e, 0.05f, &beat);
+  CHECK(e.strums() - s2 == 1, "seq: a MIDI note still strikes while the transport runs");
+}
+
+static void TestHitsLandOnTheSixteenth() {
+  // A short, bright modal strike on every 1/16 (5512.5 samples at 120 BPM):
+  // each starts within a few ms of its 1/16 (48 k block + resampler).
+  ORings &e = g_a;
+  Fresh(e);
+  Set(e, "output", "SUM");
+  Set(e, "damping", "0.1");
+  Set(e, "brightness", "0.9");
+  Set(e, "level", "1");
+  Render(e, 0.1f);
+  double beat = 0.0;
+  Audio x = RenderPlaying(e, 1.0f, &beat);
+  int bad = 0;
+  for (int k = 1; k < 7; ++k) {
+    const size_t at = static_cast<size_t>(k * 5512.5);
+    std::vector<float> pre(x.l.begin() + at - 600, x.l.begin() + at - 20);
+    std::vector<float> post(x.l.begin() + at, x.l.begin() + at + 200);
+    const double before = Rms(pre), after = Rms(post);
+    if (!(after > 3 * before)) {
+      ++bad;
+      printf("     hit %d: before %.4f after %.4f\n", k, before, after);
+    }
+  }
+  CHECK(bad == 0, "seq: %d of 6 strikes off their 1/16", bad);
+}
+
+static void TestTouchMotion() {
+  ORings &e = g_a;
+  Fresh(e);
+  const unsigned kB = 1u << Motion::LaneOf(P_BRIGHTNESS), kD = 1u << Motion::LaneOf(P_DAMPING);
+  CHECK(Motion::LaneOf(P_MODEL) < 0 && Motion::LaneOf(P_LEVEL) < 0 && Motion::LaneOf(P_POLY) < 0,
+        "motion: MODEL, VOLUME and POLY are never recorded");
+  double beat = 0.0;
+  RenderPlaying(e, 0.1f, &beat);
+  e.Touch(P_BRIGHTNESS, true);
+  RenderPlaying(e, 1.1f, &beat);
+  e.Touch(P_BRIGHTNESS, false);
+  CHECK(e.motion_mask() == 0, "motion: nothing recorded with REC off");
+  e.SetWrite(true);
+  SetF(e, P_BRIGHTNESS, 0.8f);
+  bool recording = true;
+  for (int i = 0; i < 9; ++i) {
+    e.Touch(P_BRIGHTNESS, true);
+    RenderPlaying(e, 0.13f, &beat);
+    recording = recording && (i == 0 || (e.motion_recording() & kB));
+  }
+  e.Touch(P_BRIGHTNESS, false);
+  CHECK(recording && e.motion_mask() == kB, "motion: recorded under the finger (mask %x)", e.motion_mask());
+  SetF(e, P_BRIGHTNESS, 0.2f);
+  RenderPlaying(e, 0.2f, &beat);
+  CHECK(fabsf(e.Effective(P_BRIGHTNESS) - 0.8f) < 0.01f && e.GetParam(P_BRIGHTNESS) == 0.2f,
+        "motion: plays back 0.8 (%.3f) over the knob's 0.2", e.Effective(P_BRIGHTNESS));
+  char v[32];
+  e.GetByKey("fm_index", v, sizeof(v), true);
+  CHECK(fabsf(strtof(v, NULL) - 0.8f) < 0.01f, "motion: eff_ of a label serves the playing value (%s)", v);
+  Render(e, 0.05f);
+  CHECK(e.Effective(P_BRIGHTNESS) == 0.2f, "motion: stopped, the knob plays");
+  beat = 0.0;
+  e.Touch(P_DAMPING, true);
+  RenderPlaying(e, 0.7f, &beat);
+  CHECK(!(e.motion_recording() & kD), "motion: a touch outlives no heartbeat");
+  e.ClearMotion(P_BRIGHTNESS);
+  CHECK(!(e.motion_mask() & kB), "motion: clear one lane");
+  e.ClearMotion(-1);
+  CHECK(e.motion_mask() == 0, "motion: clear all");
+
+  // EXCITE recorded per step = accents: a lane of 0 silences those strikes.
+  Fresh(e);
+  Set(e, "output", "SUM");
+  e.SetWrite(true);
+  SetF(e, P_EXCITER, 0.0f);
+  beat = 0.0;
+  for (int i = 0; i < 10; ++i) {
+    e.Touch(P_EXCITER, true);
+    RenderPlaying(e, 0.11f, &beat);
+  }
+  e.Touch(P_EXCITER, false);
+  e.SetWrite(false);
+  SetF(e, P_EXCITER, 100.0f);
+  e.Reset();
+  Render(e, 0.1f);
+  beat = 0.0;
+  Audio x = RenderPlaying(e, 1.0f, &beat);
+  CHECK(Rms(x.l) < 1e-5, "motion: an EXCITE lane at 0 plays its strikes silently (rms %.6f)", Rms(x.l));
+}
+
+static void TestRandomAndScale() {
+  ORings &e = g_a;
+  Fresh(e);
+  bool in_scale = true, lane = true;
+  for (int n = 0; n < 50; ++n) {
+    e.Randomize();
+    lane = lane && (e.motion_mask() & (1u << Motion::LaneOf(P_PITCH)));
+    double beat = 0.0;
+    for (int st = 0; st < 8; ++st) {
+      RenderPlaying(e, 0.125f, &beat);
+      const int midi = e.PitchNote(e.Effective(P_PITCH));
+      if (!InPhrygian(midi)) { in_scale = false; printf("     RANDOM note %d\n", midi); }
+    }
+    Render(e, 0.02f);
+  }
+  CHECK(lane && in_scale, "random: 50 phrases, every note in C Phrygian, in the PITCH lane");
+  const int before = e.PitchNote(e.GetParam(P_PITCH));
+  SetF(e, P_SCALE, 3);
+  const int after = e.PitchNote(e.GetParam(P_PITCH));
+  CHECK(abs(after - before) <= 1, "scale: knob %d -> %d on a scale change (re-snapped)", before, after);
+  SetF(e, P_SCALE, 9);
+  SetF(e, P_PITCH, 60.0f);
+  CHECK(e.GetParam(P_PITCH) == static_cast<float>(PitchCount(0, 9) - 1), "scale: PITCH clamps to the scale's top");
+  Set(e, "scale", "Chromatic");
+  Set(e, "root", "Eb");
+  CHECK(e.GetParam(P_SCALE) == 11.0f && e.GetParam(P_ROOT) == 3.0f, "scale: set by name");
+}
+
+static void TestSixteenStepLoop() {
+  ORings &e = g_a;
+  Fresh(e);
+  Set(e, "steps", "16");
+  CHECK(e.steps() == 16, "steps: 16");
+  double beat = 0.0;
+  int maxstep = -1;
+  for (int i = 0; i < 40; ++i) {
+    RenderPlaying(e, 0.06f, &beat);
+    if (e.motion_step() > maxstep) maxstep = e.motion_step();
+  }
+  CHECK(maxstep == 15, "steps: the 16-step loop reaches step %d", maxstep + 1);
+}
+
+static char g_state_c[16384], g_state_d[16384];
+
+static void TestMotionState() {
+  ORings &e = g_a;
+  Fresh(e);
+  e.Randomize();
+  e.ToggleGate(3);
+  Set(e, "steps", "16");
+  e.SetWrite(true);
+  double beat = 0.0;
+  RenderPlaying(e, 0.05f, &beat);
+  SetF(e, P_POSITION, 0.9f);
+  e.Touch(P_POSITION, true);
+  RenderPlaying(e, 0.3f, &beat);
+  e.Touch(P_POSITION, false);
+  e.WriteState(g_state_c, sizeof(g_state_c));
+  CHECK(strstr(g_state_c, "pitch:") && strstr(g_state_c, "position:") && strstr(g_state_c, "\"g\":65527}"),
+        "state: lanes and gates saved (%zu bytes)", strlen(g_state_c));
+  Fresh(g_b);
+  CHECK(g_b.ReadState(g_state_c), "state: read back");
+  g_b.WriteState(g_state_d, sizeof(g_state_d));
+  CHECK(!strcmp(g_state_c, g_state_d), "state: motion round trip identical");
+  // A 0.1.0 state: no motion, every pad on; a corrupt lane is refused.
+  CHECK(g_b.ReadState("{\"v\":1,\"damping\":0.9}") && g_b.motion_mask() == 0 && g_b.gates() == 0xFFFF,
+        "state: a 0.1.0 state clears motion and pads");
+  CHECK(g_b.ReadState("{\"v\":1,\"m\":\"pitch:!!\",\"g\":1}") && g_b.motion_mask() == 0 && g_b.gates() == 1,
+        "state: a corrupt lane is dropped, the rest applies");
+  CHECK(!g_b.ReadState("{\"v\":2}") && !g_b.ReadState("{\"v\":1"), "state: future / truncated refused");
+  // Root + scale are restored before PITCH (no re-snap through the default).
+  Fresh(e);
+  Set(e, "scale", "Chromatic");
+  SetF(e, P_PITCH, 50.0f);
+  e.WriteState(g_state_c, sizeof(g_state_c));
+  Fresh(g_b);
+  g_b.ReadState(g_state_c);
+  CHECK(g_b.GetParam(P_PITCH) == 50.0f, "state: PITCH 50 in Chromatic restored as %g", g_b.GetParam(P_PITCH));
+}
+
+static void TestPerformanceFuzz() {
+  ORings &e = g_a;
+  Fresh(e);
+  double beat = 0.0;
+  unsigned r = 7;
+  float l[128], rr[128];
+  bool finite = true;
+  for (int i = 0; i < 3000; ++i) {
+    r = r * 1664525u + 1013904223u;
+    switch ((r >> 24) % 10) {
+      case 0: e.Randomize(); break;
+      case 1: e.ToggleGate(static_cast<int>((r >> 8) % 16)); break;
+      case 2: SetF(e, P_STEPS, static_cast<float>((r >> 9) & 1)); break;
+      case 3: SetF(e, P_PITCH, static_cast<float>((r >> 10) % 61)); break;
+      case 4: e.SetWrite(((r >> 11) & 1) != 0); e.Touch(P_STRUCTURE + (r >> 12) % 4, ((r >> 14) & 1) != 0); break;
+      case 5: beat = (r >> 12) % 64 / 4.0; break;
+      case 6: for (int b = 0; b < 3; ++b) e.Process(l, rr, 128, -1.0, 120.0f, true); break;
+      case 7: SetF(e, P_SCALE, static_cast<float>((r >> 13) % 12)); break;
+      case 8: SetF(e, P_ROOT, static_cast<float>((r >> 13) % 12)); break;
+      default: SetF(e, P_MODEL, static_cast<float>((r >> 5) % kNumModels)); break;
+    }
+    const int n = 1 + static_cast<int>((r >> 16) % 20);
+    for (int b = 0; b < n; ++b) {
+      e.Process(l, rr, 128, beat, 30.0f + (r >> 20) % 270, true);
+      beat += 128.0 / kRate * 2.0;
+      for (int k = 0; k < 128; ++k) finite = finite && isfinite(l[k]) && isfinite(rr[k]);
+    }
+  }
+  CHECK(finite && e.recoveries() == 0 && e.swallowed() == 0 && e.pending() < kQueue,
+        "fuzz: 3000 pad/knob/transport events: finite, %u recoveries, %u swallowed, %d pending", e.recoveries(),
+        e.swallowed(), e.pending());
+}
+
 int main() {
   TestReference();
   TestEveryModelSounds();
@@ -644,6 +916,13 @@ int main() {
   TestStateAndKeys();
   TestResetAndSwitch();
   TestSoak();
+  TestAutoSixteenths();
+  TestHitsLandOnTheSixteenth();
+  TestTouchMotion();
+  TestRandomAndScale();
+  TestSixteenStepLoop();
+  TestMotionState();
+  TestPerformanceFuzz();
   if (g_failures) {
     printf("%d FAILED\n", g_failures);
     return 1;

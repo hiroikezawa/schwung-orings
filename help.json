@@ -18,33 +18,34 @@
     {
       "title": "Playing",
       "lines": [
-        "Note-on = strike.",
-        "Same note again =",
-        "strike again.",
-        "Note-off does",
-        "nothing: DAMPING",
-        "sets the decay.",
+        "Press Play on Move:",
+        "a strike on every",
+        "1/16 whose step pad",
+        "is on, at PITCH.",
+        "Stopped = silent.",
+        "MIDI notes strike",
+        "too, at their own",
+        "pitch. Note-off does",
+        "nothing: DAMP sets",
+        "the decay.",
         "Velocity = how hard",
-        "(see VELO).",
-        "Chords: one strike",
-        "per note, 10.5 ms",
-        "apart (SPREAD)."
+        "(see VELO)."
       ]
     },
     {
       "title": "Main page",
       "lines": [
-        "1 FREQ  transpose",
-        "        -24..+24 st",
+        "1 VOLUME",
         "2 STRUCT harmonic",
         "        structure",
         "3 BRIGHT tone",
         "4 DAMP  decay time",
         "5 POS   where it is",
         "        struck",
-        "6 MODEL 12 modes",
-        "7 POLY  1-4 voices",
-        "8 LEVEL volume",
+        "6 POLY  1-4 voices",
+        "7 MODEL 12 modes",
+        "8 PITCH note of the",
+        "        scale",
         "Knobs 2-5 change",
         "name with MODEL."
       ]
@@ -88,22 +89,99 @@
       ]
     },
     {
-      "title": "Advanced page",
+      "title": "Rings page",
       "lines": [
-        "1 FINE  cents",
-        "2 EXCITE strike",
+        "1 FREQ  transpose",
+        "        -24..+24 st",
+        "2 FINE  cents",
+        "3 EXCITE strike",
         "        strength %",
-        "3 SPREAD ms between",
-        "        chord notes",
-        "4 VELO  velocity",
+        "4 SPREAD ms between",
+        "        MIDI chords",
+        "5 VELO  velocity",
         "        response %",
-        "5 BEND  bend range",
-        "6 OUTPUT STEREO =",
+        "6 BEND  bend range",
+        "7 OUTPUT STEREO =",
         "  ODD L / EVEN R,",
         "  SUM, ODD, EVEN",
-        "7 GAIN  dB",
-        "8 RESET click to",
+        "8 GAIN  dB"
+      ]
+    },
+    {
+      "title": "Scale page",
+      "lines": [
+        "1 ROOT  of PITCH",
+        "2 SCALE of PITCH",
+        "3 STEPS loop 8/16",
+        "4 RESET click to",
         "  silence all"
+      ]
+    },
+    {
+      "title": "Pads",
+      "lines": [
+        "While this screen is",
+        "up the pads are",
+        "oRings':",
+        "Top right: REC,",
+        "  RANDOM, MODELS.",
+        "Row 2: presets 1-8.",
+        "Bottom 2 rows: the",
+        "  16 steps on/off.",
+        "  White = playing."
+      ]
+    },
+    {
+      "title": "REC motion",
+      "lines": [
+        "REC on + Move",
+        "playing: touch a",
+        "knob and turn it to",
+        "record its move.",
+        "Shift+touch: clear",
+        "that knob.",
+        "Shift+touch VOLUME:",
+        "clear all.",
+        "Recorded: knobs 2-5,",
+        "PITCH, EXCITE."
+      ]
+    },
+    {
+      "title": "RANDOM",
+      "lines": [
+        "Writes a new melody",
+        "into PITCH, one note",
+        "per step, all in",
+        "ROOT + SCALE, around",
+        "the PITCH knob's",
+        "note. Press again",
+        "for another.",
+        "Shift+touch PITCH",
+        "clears it."
+      ]
+    },
+    {
+      "title": "Presets",
+      "lines": [
+        "Row 2 pads:",
+        "tap = recall,",
+        "Shift+tap = save.",
+        "Saves knobs, motion,",
+        "steps and scale.",
+        "Dark = empty,",
+        "dim = saved,",
+        "white = current."
+      ]
+    },
+    {
+      "title": "MODELS list",
+      "lines": [
+        "Pad MODELS opens it.",
+        "Jog: move, click:",
+        "on/off. The MODEL",
+        "knob offers only the",
+        "models that are on.",
+        "Back closes."
       ]
     },
     {

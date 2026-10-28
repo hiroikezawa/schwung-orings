@@ -25,6 +25,9 @@ mkdir -p "$OUT" "$OUT_FX" "$GEN" "$OBJ"
 python3 "$MODULE/scripts/gen_tables.py" "$GEN/orings_tables.h"
 python3 "$MODULE/scripts/metadata.py" "$GEN"
 python3 "$MODULE/scripts/fx_metadata.py" "$GEN"
+# The RANDOM pad's phrase sources: MIDI files compiled in (nothing is read on
+# the device).
+python3 "$MODULE/scripts/embed_patterns.py" "$MODULE/patterns" "$GEN/pg_patterns_data.h"
 
 # -DTEST: stmlib's switch for a non-MCU build (no ".ramtext" placement).
 # -include stdio.h: as for the other Mutable ports, so a TEST branch's
@@ -42,6 +45,9 @@ COMMON=(-O2 -fPIC -fno-strict-aliasing -fno-math-errno -ffp-contract=off -DTEST
         -I"$MODULE/src" -isystem "$MODULE/src/rings/mi" -I"$GEN" -I"$API")
 OURS=(-std=gnu++17 -Wall -Wextra -Werror)
 VENDOR=(-std=gnu++11 -w -include stdio.h)   # third-party, compiled as shipped
+# Phrase Gen's engine is C. -std=c11 matters: GCC 15 defaults to C23, whose
+# headers bind string conversions to GLIBC_2.38 (Move has 2.34).
+PHRASE=(-std=c11 -O2 -fPIC -fvisibility=hidden -Wall -Wextra -Werror -I"$MODULE/src/phrase" -I"$GEN")
 
 compile() {  # compile <flags-array-name> <source>; prints the object
   local -n flags=$1
@@ -54,7 +60,13 @@ dsp=()   # the Rings DSP, shared by both modules
 while IFS= read -r f; do
   dsp+=("$(compile VENDOR "$f")")
 done < <(find "$MODULE/src/rings/mi" -name '*.cc' | sort)
-synth=("$(compile OURS "$MODULE/src/dsp_plugin.cpp")" "$(compile OURS "$MODULE/src/wrapper/orings.cpp")")
+synth=("$(compile OURS "$MODULE/src/dsp_plugin.cpp")")
+for f in "$MODULE"/src/wrapper/*.cpp; do synth+=("$(compile OURS "$f")"); done
+for f in "$MODULE"/src/phrase/*.c; do
+  obj="$OBJ/phrase_$(basename "$f").o"
+  "$CC" "${PHRASE[@]}" -c "$f" -o "$obj"
+  synth+=("$obj")
+done
 fx=("$(compile OURS "$MODULE/src/fx_plugin.cpp")" "$(compile OURS "$MODULE/src/fx/orings_fx.cpp")")
 LINK=(-shared -Wl,-z,defs -Wl,-Bsymbolic -Wl,--gc-sections -lm)
 "$CC" -o "$OUT/dsp.so" "${dsp[@]}" "${synth[@]}" "${LINK[@]}"
@@ -65,7 +77,7 @@ cp "$MODULE/fx/module.json" "$OUT_FX/"
 if [[ "${1:-arm64}" == arm64 ]]; then
   python3 "$MODULE/scripts/check_abi.py" "$OUT/dsp.so" move_plugin_init_v2
   python3 "$MODULE/scripts/check_abi.py" "$OUT_FX/orings-fx.so" move_audio_fx_init_v2
-  for f in help.json README.md LICENSE THIRD_PARTY_LICENSES.md; do
+  for f in ui_chain.js ui_core.mjs ui_params.mjs help.json README.md LICENSE THIRD_PARTY_LICENSES.md; do
     cp "$MODULE/$f" "$OUT/"
   done
   for f in LICENSE THIRD_PARTY_LICENSES.md; do cp "$MODULE/$f" "$OUT_FX/"; done

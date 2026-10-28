@@ -1,5 +1,7 @@
 // oRings CPU bench: time Process() for one 128-frame Move block, per MODEL and
-// polyphony, while notes are struck every 250 ms. Built static for the Move
+// polyphony, with Move's transport running at 120 BPM: a strike on every 1/16
+// (all 16 trigger pads on), a RANDOM phrase playing in PITCH and a recorded
+// STRUCTURE lane playing back -- the module's busiest ordinary use. Built static for the Move
 // by scripts/build_bench.sh; run it there (scripts/bench_move.sh).
 // Copyright (c) 2026 Hiro Ikezawa. MIT License (see LICENSE).
 #include <stdio.h>
@@ -31,15 +33,24 @@ int main() {
       snprintf(t, sizeof(t), "%d", poly - 1);
       e.SetByKey("polyphony", t);
       e.ApplyNow();
+      e.Randomize();
+      double beat = 0.0;
+      // One bar of STRUCTURE motion, written by a held touch.
+      e.SetWrite(true);
+      for (int b = 0; b < 690; ++b) {
+        e.SetParam(P_STRUCTURE, (b % 345) / 345.0f);
+        e.Touch(P_STRUCTURE, true);
+        e.Process(l, r, 128, beat, 120.0f, true);
+        beat += 128.0 / 44100.0 * 2.0;
+      }
+      e.Touch(P_STRUCTURE, false);
+      e.SetWrite(false);
       static double us[kBlocks];
       for (int b = 0; b < kBlocks; ++b) {
-        if (b % 86 == 0) {
-          const uint8_t note[3] = {0x90, static_cast<uint8_t>(36 + (b / 86 * 7) % 36), 110};
-          e.Midi(note, 3);
-        }
         const double t0 = Now();
-        e.Process(l, r, 128);
+        e.Process(l, r, 128, beat, 120.0f, true);
         us[b] = Now() - t0;
+        beat += 128.0 / 44100.0 * 2.0;
       }
       double sum = 0, max = 0;
       for (int b = 0; b < kBlocks; ++b) {
