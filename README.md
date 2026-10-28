@@ -316,6 +316,10 @@ MIDI ファイルのどこが使われるか:
 - 名前が変わっても、中で動かしている値は同じ 4 つ（STRUCTURE / BRIGHTNESS /
   DAMPING / POSITION）です。公式 DSP がモードごとに割り当てている意味を、
   そのまま画面に表示しています。
+- **BRIGHT の下限**: MODAL・SYMPA・STRNG・KVERB・CHORD では、BRIGHT のノブ
+  0〜1 を公式 DSP の BRIGHTNESS 0.2〜1 に割り当てています。0.2 より下では
+  打撃が 15〜20 dB 削られ、ほとんど音が出なくなるためです（0.2.1）。
+  FM（INDEX 0 = 純粋なサイン波）と Disastrous Peace 系は 0〜1 のままです。
 - **FM**: RATIO = モジュレーターの周波数比（公式の量子化テーブル）、
   INDEX = FM の深さ、DECAY = 内蔵エンベロープの長さ（最大付近ではドローン）、
   FDBK = フィードバック（中央が 0、左右で 2 種類のフィードバック）。

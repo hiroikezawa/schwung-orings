@@ -2,7 +2,7 @@
   "id": "orings",
   "name": "oRings",
   "abbrev": "oRNGS",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Physical-modelling resonator from the original open-source Rings DSP at its own 48 kHz: modal, sympathetic strings, inharmonic string, 2-op FM, Western Chords, Karplusverb and the Disastrous Peace string machine, 1-4 voices. Struck from MIDI and on every 1/16 of Move's transport: 16 trigger pads, touch-recorded knob motion, a Phrase Gen RANDOM pad, preset pads and a PITCH knob set in the scale",
   "author": "Hiro Ikezawa",
   "license": "MIT",

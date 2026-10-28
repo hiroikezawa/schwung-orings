@@ -20,6 +20,10 @@ namespace {
 // cv_scaler.cc channel_settings_: every pot is low-passed with 0.01 per
 // block (ADC_CHANNEL_POT_*).
 const float kPotCoefficient = 0.01f;
+// On the resonator models (not FM) the BRIGHTNESS knob covers 0.2..1: below
+// ~0.2 the strike is filtered 15-20 dB down and the voice nearly mutes. FM keeps
+// 0..1 (0 = a pure sine) and the string synth is not muted by it.
+const float kBrightnessFloor = 0.2f;
 // Output-stage smoothing per block (LEVEL, GAIN, OUTPUT): ~2.5 ms.
 const float kOutCoefficient = 0.2f;
 // The V/OCT note sits relative to the tonic; tonic = kTonic + FREQUENCY, so
@@ -429,7 +433,10 @@ void ORings::RenderBlock(float *out, float *aux) {
   pot_[3] += kPotCoefficient * (Effective(P_POSITION) - pot_[3]);
   // cv_scaler.cc ATTENUVERT ranges.
   patch.structure = pot_[0] < 0.9995f ? pot_[0] : 0.9995f;
-  patch.brightness = pot_[1];
+  const ModelDef &md = kModels[applied_model_];
+  const bool floored = !md.string_synth && md.index != rings::RESONATOR_MODEL_FM_VOICE;
+  patch.brightness = floored
+      ? kBrightnessFloor + (1.0f - kBrightnessFloor) * pot_[1] : pot_[1];
   patch.damping = pot_[2];
   patch.position = pot_[3];
 

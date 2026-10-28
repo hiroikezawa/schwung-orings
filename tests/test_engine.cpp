@@ -123,7 +123,10 @@ static void TestReference() {
 
       rings::Patch patch;
       patch.structure = kParams[P_STRUCTURE].def;
-      patch.brightness = kParams[P_BRIGHTNESS].def;
+      // Resonator models (not FM): the knob covers 0.2..1 of BRIGHTNESS.
+      const float bd = kParams[P_BRIGHTNESS].def;
+      patch.brightness = !md.string_synth && md.index != rings::RESONATOR_MODEL_FM_VOICE
+          ? 0.2f + 0.8f * bd : bd;
       patch.damping = kParams[P_DAMPING].def;
       patch.position = kParams[P_POSITION].def;
       float in[kBlock] = {0};
