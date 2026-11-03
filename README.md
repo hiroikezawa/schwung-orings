@@ -67,7 +67,7 @@ Emilie Gillet 氏が MIT ライセンスで公開している公式ファーム�
 - **PITCH** は自動打撃の音程で、スケール上の音を選びます（スケールは Scale ページ）。
 - **よく使うモデルだけに絞る**: MODELS パッド（RANDOM の左隣）で一覧を開き、
   使うモデルだけを ON にできます（下の「使うモデルを選ぶ（MODELS 一覧）」）。
-- **ジョグを回す**と Rings（移調・打撃・出力の設定）→ Scale（ROOT・SCALE・STEPS・RESET）
+- **ジョグを回す**と Rings（移調・打撃・出力の設定）→ Scale（ROOT・SCALE・STEPS・RESET・CHORD）
   → My Presets（プリセット）→ Module のページに移ります。
 
 ### 3. パターンを作る（パッド）
@@ -147,7 +147,7 @@ Save As（名前を付けて保存）、Preset（一覧から読み込み）、S
 |---|---|
 | メイン | VOLUME・STRUCT・BRIGHT・DAMP・POS・POLY・MODEL・PITCH（2〜5 はモデルで名前が変わる） |
 | Rings | FREQ・FINE・EXCITE・SPREAD・VELO・BEND・OUTPUT・GAIN |
-| Scale | ROOT・SCALE・STEPS・RESET |
+| Scale | ROOT・SCALE・STEPS・RESET・CHORD（和音を使うモデルのみ） |
 | My Presets | プリセットの呼び出し・保存・削除（Schwung 共通） |
 | Module | モジュールの入れ替え・ヘルプ（Schwung 共通） |
 
@@ -305,13 +305,13 @@ MIDI ファイルのどこが使われるか:
 | STRNG | 変調・非調和の弦（STRUCT で弦の硬さ） | STRUCT | BRIGHT | DAMP | POS |
 | KVERB | Karplusverb（弦＋リバーブ） | STRUCT | BRIGHT | DCY+RV | POS |
 | FM | 2 オペレーター FM | RATIO | INDEX | DECAY | FDBK |
-| CHORD | Western Chords（共鳴弦が和音に固定） | CHORD | BRIGHT | DAMP | POS |
-| DP-FM | Disastrous Peace＋フォルマント | CHORD | REGIST | ENV | VOWEL |
-| DP-CH | Disastrous Peace＋コーラス | CHORD | REGIST | ENV | CHORUS |
-| DP-RV | Disastrous Peace＋リバーブ | CHORD | REGIST | ENV | REVERB |
-| DP-F2 | Disastrous Peace＋フォルマント 2 | CHORD | REGIST | ENV | VOWEL |
-| DP-EN | Disastrous Peace＋アンサンブル | CHORD | REGIST | ENV | ENSMBL |
-| DP-R2 | Disastrous Peace＋リバーブ 2 | CHORD | REGIST | ENV | REVERB |
+| CHORD | Western Chords（共鳴弦が和音に固定） | STRUCT | BRIGHT | DAMP | POS |
+| DP-FM | Disastrous Peace＋フォルマント | CUTOFF | REGIST | ENV | VOWEL |
+| DP-CH | Disastrous Peace＋コーラス | CUTOFF | REGIST | ENV | CHORUS |
+| DP-RV | Disastrous Peace＋リバーブ | CUTOFF | REGIST | ENV | REVERB |
+| DP-F2 | Disastrous Peace＋フォルマント 2 | CUTOFF | REGIST | ENV | VOWEL |
+| DP-EN | Disastrous Peace＋アンサンブル | CUTOFF | REGIST | ENV | ENSMBL |
+| DP-R2 | Disastrous Peace＋リバーブ 2 | CUTOFF | REGIST | ENV | REVERB |
 
 - 名前が変わっても、中で動かしている値は同じ 4 つ（STRUCTURE / BRIGHTNESS /
   DAMPING / POSITION）です。公式 DSP がモードごとに割り当てている意味を、
@@ -323,8 +323,15 @@ MIDI ファイルのどこが使われるか:
 - **FM**: RATIO = モジュレーターの周波数比（公式の量子化テーブル）、
   INDEX = FM の深さ、DECAY = 内蔵エンベロープの長さ（最大付近ではドローン）、
   FDBK = フィードバック（中央が 0、左右で 2 種類のフィードバック）。
-- **CHORD**（Western Chords と Disastrous Peace）: ノブ 2 で 11 種類の和音
-  （OCT, 5, sus4, m, m7, m9, m11, 69, M9, M7, M）を選びます。
+- **CHORD**（Western Chords と Disastrous Peace）: Scale ページの CHORD で
+  11 種類の和音（OCT, 5, sus4, m, m7, m9, m11, 69, M9, M7, M）を選びます。
+  和音を使うモデルでだけ表示されます。ノブ 2〜5 は、鳴っている音をリアルタイムに
+  変えるためのノブとして空けてあります。
+- **ノブ 2**: Western Chords の STRUCT は弦の非調和性を連続で変えます。
+  Disastrous Peace の CUTOFF は、公式 DSP にはない 2 極ローパスフィルターで、
+  オルガンの出力の後ろにあります（150 Hz〜20 kHz、レゾナンスなし）。公式 DSP の
+  STRUCTURE はこのモードでは和音選択にしか使われず、連続で動かせる値がないため
+  追加しました。右端では完全にバイパスされ、公式の音そのものになります。
 - **Disastrous Peace** は、実機で隠し操作をすると現れるオルガン／ストリングマシンです。
   REGIST = オルガンのレジストレーション（倍音の組み合わせ）、
   ENV = 回すほど減衰が長くなり、右半分ではアタックも遅くなり、右端でドローン、

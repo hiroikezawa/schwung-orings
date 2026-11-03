@@ -79,9 +79,10 @@
         "  DECAY, FDBK",
         "KVERB: DCY+RV =",
         "  decay + reverb",
-        "CHORD: STRUCT",
-        "  picks the chord",
-        "DP: CHORD, REGIST",
+        "Chord models: the",
+        "  chord is on the",
+        "  Scale page",
+        "DP: CUTOFF, REGIST",
         "  (organ stops),",
         "  ENV (attack/",
         "  decay), then the",
@@ -114,7 +115,9 @@
         "2 SCALE of PITCH",
         "3 STEPS loop 8/16",
         "4 RESET click to",
-        "  silence all"
+        "  silence all",
+        "5 CHORD chord",
+        "  models only"
       ]
     },
     {

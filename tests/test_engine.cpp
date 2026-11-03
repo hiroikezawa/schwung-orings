@@ -500,12 +500,14 @@ static void TestExciterAndVelocity() {
     Set(e, "model", m);
     Set(e, "velocity", "100");
     Set(e, "output", "SUM");
+    stmlib::Random::Seed(42);  // the plucker's burst is noise: the same burst for both
     Note(e, 48, 127);
     Audio hi = Render(e, 0.6f);
     Fresh(e);
     Set(e, "model", m);
     Set(e, "velocity", "100");
     Set(e, "output", "SUM");
+    stmlib::Random::Seed(42);
     Note(e, 48, 32);
     Audio lo = Render(e, 0.6f);
     Fresh(e);
@@ -518,6 +520,51 @@ static void TestExciterAndVelocity() {
           "velocity %s: vel 127 / 32 at response 100 = %.1fx; EXCITER 0 rms %.6f", m, Rms(hi.l) / Rms(lo.l),
           Rms(none.l));
   }
+}
+
+// Knob 2: in every chord model it is continuous and never touches the chord;
+// CUTOFF darkens a chord that is ALREADY ringing, without silencing it.
+static void TestKnob2AndChord() {
+  const char *dp[] = {"DP-FM", "DP-CH", "DP-RV", "DP-F2", "DP-EN", "DP-R2"};
+  for (const char *m : dp) {
+    ORings &e = g_a;
+    Fresh(e);
+    Set(e, "model", m);
+    Set(e, "damping", "1");   // a drone
+    e.ApplyNow();
+    const uint8_t on[3] = {0x90, 48, 110};
+    e.Midi(on, 3);
+    Audio warm = Render(e, 0.5f);
+    Audio open = Render(e, 0.3f);
+    const int c0 = e.chord();
+    Set(e, "cutoff", "0");
+    Render(e, 0.3f);          // the pot's ~50 ms, well past
+    Audio shut = Render(e, 0.3f);
+    const double f0 = Centroid(open.l, 2205), f1 = Centroid(shut.l, 2205);
+    const double db = 20 * log10((Rms(shut.l) + 1e-12) / (Rms(open.l) + 1e-12));
+    CHECK(f1 < 0.7 * f0 && db > -30.0 && e.chord() == c0,
+          "knob 2 %s: CUTOFF on a ringing chord, centroid %.0f->%.0f Hz, level %.1f dB, chord kept",
+          m, f0, f1, db);
+    (void)warm;
+  }
+  Fresh(g_a);
+  Set(g_a, "model", "CHORD");
+  Set(g_a, "structure_c", "0.9");
+  g_a.ApplyNow();
+  float l[128], r[128];
+  g_a.Process(l, r, 128);
+  CHECK(g_a.chord() == 2, "knob 2 CHORD: STRUCT no longer selects the chord (%d)", g_a.chord());
+  Audio a = Struck("CHORD", "structure_c", "0.1"), b = Struck("CHORD", "structure_c", "0.9");
+  CHECK(fabs(Correlation(a.l, b.l)) < 0.99, "knob 2 CHORD: STRUCT changes the sound (corr %.2f)",
+        Correlation(a.l, b.l));
+  // A state from before 0.3.0: its STRUCTURE was the chord.
+  Fresh(g_b);
+  CHECK(g_b.ReadState("{\"v\":1,\"model\":8,\"structure\":0.5}"), "state: pre-0.3.0 read");
+  char v[16];
+  g_b.GetByKey("chord", v, sizeof(v));
+  CHECK(!strcmp(v, "5"), "state: pre-0.3.0 STRUCTURE 0.5 keeps its chord (%s)", v);
+  g_b.GetByKey("cutoff", v, sizeof(v));
+  CHECK(!strcmp(v, "1.0000"), "state: pre-0.3.0 opens CUTOFF (%s)", v);
 }
 
 static void TestStateAndKeys() {
@@ -914,6 +961,7 @@ int main() {
   TestStrums();
   TestPolyphony();
   TestKnobs();
+  TestKnob2AndChord();
   TestOutputs();
   TestExciterAndVelocity();
   TestStateAndKeys();

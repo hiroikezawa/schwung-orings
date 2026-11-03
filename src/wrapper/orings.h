@@ -39,6 +39,7 @@
 #include "rings/dsp/string_synth_part.h"
 #include "rings/dsp/strummer.h"
 #include "rings/resampler.h"
+#include "stmlib/dsp/filter.h"
 #include "wrapper/motion.h"
 #include "wrapper/random_phrase.h"
 
@@ -130,7 +131,6 @@ class ORings {
   int pending() const { return queue_count_; }
 
  private:
-  void ApplyStructure();
   void ApplyModelNow();
   void InitParts();
   void Enqueue(uint8_t note, uint8_t velocity, bool seq = false);
@@ -154,9 +154,9 @@ class ORings {
   Resampler resampler_;
 
   // The pots after cv_scaler.cc's low-pass.
-  float pot_[4];
-  // CvScaler::Read's chord hysteresis (chord_), fed by STRUCTURE.
-  int chord_;
+  float pot_[5];
+  int chord_;  // the CHORD parameter, as the last block played it
+  stmlib::Svf cutoff_[2];  // CUTOFF, Disastrous Peace only
   // CvScaler::Read's FM smoothing (fm_cv_), fed by bend + FINE.
   float fm_cv_;
   int bend_;  // -8192..8191

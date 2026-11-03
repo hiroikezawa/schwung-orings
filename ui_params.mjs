@@ -31,24 +31,14 @@ export const PARAMS = [
   "default": 0.25
  },
  {
-  "key": "chord",
-  "name": "Chord",
-  "short_name": "CHORD",
-  "type": "enum",
-  "options": [
-   "OCT",
-   "5",
-   "sus4",
-   "m",
-   "m7",
-   "m9",
-   "m11",
-   "69",
-   "M9",
-   "M7",
-   "M"
-  ],
-  "default": "OCT"
+  "key": "structure_c",
+  "name": "Structure",
+  "short_name": "STRUCT",
+  "type": "float",
+  "min": 0,
+  "max": 1,
+  "step": 0.01,
+  "default": 0.25
  },
  {
   "key": "brightness",
@@ -428,12 +418,42 @@ export const PARAMS = [
   ],
   "default": "-",
   "access": "write"
+ },
+ {
+  "key": "chord",
+  "name": "Chord",
+  "short_name": "CHORD",
+  "type": "enum",
+  "options": [
+   "OCT",
+   "5",
+   "sus4",
+   "m",
+   "m7",
+   "m9",
+   "m11",
+   "69",
+   "M9",
+   "M7",
+   "M"
+  ],
+  "default": "sus4"
+ },
+ {
+  "key": "cutoff",
+  "name": "Cutoff",
+  "short_name": "CUTOFF",
+  "type": "float",
+  "min": 0,
+  "max": 1,
+  "step": 0.01,
+  "default": 1.0
  }
 ];
 export const MODEL_NAMES = ["MODAL", "SYMPA", "STRNG", "KVERB", "FM", "CHORD", "DP-FM", "DP-CH", "DP-RV", "DP-F2", "DP-EN", "DP-R2"];
 /* label key -> the stored parameter it turns */
-export const ALIAS_BASE = {"structure": "structure", "ratio": "structure", "chord": "structure", "brightness": "brightness", "fm_index": "brightness", "brightness_c": "brightness", "registration": "brightness", "damping": "damping", "decay_verb": "damping", "decay": "damping", "damping_c": "damping", "envelope": "damping", "position": "position", "feedback": "position", "position_c": "position", "vowel": "position", "chorus": "position", "reverb": "position", "vowel_2": "position", "ensemble": "position", "reverb_2": "position"};
+export const ALIAS_BASE = {"structure": "structure", "ratio": "structure", "structure_c": "structure", "cutoff": "cutoff", "brightness": "brightness", "fm_index": "brightness", "brightness_c": "brightness", "registration": "brightness", "damping": "damping", "decay_verb": "damping", "decay": "damping", "damping_c": "damping", "envelope": "damping", "position": "position", "feedback": "position", "position_c": "position", "vowel": "position", "chorus": "position", "reverb": "position", "vowel_2": "position", "ensemble": "position", "reverb_2": "position"};
 /* bit k of the DSP's motion masks */
-export const MOTION_KEYS = ["structure", "brightness", "damping", "position", "pitch", "exciter"];
+export const MOTION_KEYS = ["structure", "brightness", "damping", "position", "pitch", "exciter", "cutoff"];
 /* page 1, MODAL */
 export const MAIN_KEYS = ["level", "structure", "brightness", "damping", "position", "polyphony", "model", "pitch"];

@@ -12,8 +12,8 @@ Two kinds of entry:
   * LABELS (ALIASES): a second key for a stored parameter whose name on the
     screen is what that knob means in the selected MODEL. Rings' official
     modes give its four macro knobs different jobs (2-op FM: STRUCTURE is the
-    frequency ratio, POSITION the feedback; Disastrous Peace: STRUCTURE picks
-    the chord, DAMPING shapes the envelope, POSITION drives the effect...).
+    frequency ratio, POSITION the feedback; Disastrous Peace: DAMPING shapes
+    the envelope, POSITION drives the effect...).
     Each label is a param entry in the grid hierarchy with a `visible_if` on
     `model`, so exactly one label per knob is visible for any MODEL and the
     knob grid always shows eight cells. Labels are never stored.
@@ -68,7 +68,7 @@ PITCH_TABLE_MAX, PITCH_SERVED_MAX = 60, 35
 # In the knob grid's page order:
 #   main   VOLUME STRUCT BRIGHT DAMP POS POLY MODEL PITCH
 #   Rings  FREQ FINE EXCITE SPREAD VELO BEND OUTPUT GAIN
-#   Scale  ROOT SCALE STEPS RESET
+#   Scale  ROOT SCALE STEPS RESET CHORD (CHORD only where a model has chords)
 PARAMS = [
     ("LEVEL", "level", "Volume", "VOLUME", "float", 0, 1, 0.01, 0.7, {}),
     ("STRUCTURE", "structure", "Structure", "STRUCT", "float", 0, 1, 0.01, 0.25, {}),
@@ -94,52 +94,61 @@ PARAMS = [
     ("STEPS", "steps", "Steps", "STEPS", "enum", 0, 1, 1, 0, {"options": ["8", "16"]}),
     ("RESET", "reset", "Reset", "RESET", "enum", 0, 1, 1, 0,
      {"options": ["-", "RESET"], "access": "write"}),
+    # Rings feeds both to the DSP from one STRUCTURE pot; here the chord is its
+    # own (never modulated) choice so that knob 2 stays a real-time control.
+    # Default sus4: what STRUCTURE's default 0.25 used to select.
+    ("CHORD", "chord", "Chord", "CHORD", "enum", 0, len(CHORDS) - 1, 1, 2, {"options": CHORDS}),
+    # Knob 2 of Disastrous Peace, which has no continuous STRUCTURE. Not Rings:
+    # a low-pass after the string synth (orings.cpp). 1.0 = bypassed.
+    ("CUTOFF", "cutoff", "Cutoff", "CUTOFF", "float", 0, 1, 0.01, 1.0, {}),
 ]
 
 # The parameters a knob TOUCH records (src/wrapper/motion.h), lane k = bit k
 # of every mask. New lanes go at the END (saved states name their lanes, but
 # the UI's masks are positional).
-LANES = ["structure", "brightness", "damping", "position", "pitch", "exciter"]
+LANES = ["structure", "brightness", "damping", "position", "pitch", "exciter", "cutoff"]
 P = {p[0]: i for i, p in enumerate(PARAMS)}
 
-# key, stored id, name, short_name, condition on model, as_chord
+# key, stored id, name, short_name, condition on model
 ALIASES = [
     # Knob 2
-    ("structure", "STRUCTURE", None, None, {"lt": M["FM"]}, False),
-    ("ratio", "STRUCTURE", "FM Ratio", "RATIO", {"equals": M["FM"]}, False),
-    ("chord", "STRUCTURE", "Chord", "CHORD", {"gt": M["FM"]}, True),
+    ("structure", "STRUCTURE", None, None, {"lt": M["FM"]}),
+    ("ratio", "STRUCTURE", "FM Ratio", "RATIO", {"equals": M["FM"]}),
+    ("structure_c", "STRUCTURE", "Structure", "STRUCT", {"equals": M["CHORD"]}),
+    ("cutoff", "CUTOFF", None, None, {"gt": M["CHORD"]}),
     # Knob 3
-    ("brightness", "BRIGHTNESS", None, None, {"lt": M["FM"]}, False),
-    ("fm_index", "BRIGHTNESS", "FM Index", "INDEX", {"equals": M["FM"]}, False),
-    ("brightness_c", "BRIGHTNESS", "Brightness", "BRIGHT", {"equals": M["CHORD"]}, False),
-    ("registration", "BRIGHTNESS", "Registration", "REGIST", {"gt": M["CHORD"]}, False),
+    ("brightness", "BRIGHTNESS", None, None, {"lt": M["FM"]}),
+    ("fm_index", "BRIGHTNESS", "FM Index", "INDEX", {"equals": M["FM"]}),
+    ("brightness_c", "BRIGHTNESS", "Brightness", "BRIGHT", {"equals": M["CHORD"]}),
+    ("registration", "BRIGHTNESS", "Registration", "REGIST", {"gt": M["CHORD"]}),
     # Knob 4
-    ("damping", "DAMPING", None, None, {"lt": M["KVERB"]}, False),
-    ("decay_verb", "DAMPING", "Decay+Verb", "DCY+RV", {"equals": M["KVERB"]}, False),
-    ("decay", "DAMPING", "FM Decay", "DECAY", {"equals": M["FM"]}, False),
-    ("damping_c", "DAMPING", "Damping", "DAMP", {"equals": M["CHORD"]}, False),
-    ("envelope", "DAMPING", "Envelope", "ENV", {"gt": M["CHORD"]}, False),
+    ("damping", "DAMPING", None, None, {"lt": M["KVERB"]}),
+    ("decay_verb", "DAMPING", "Decay+Verb", "DCY+RV", {"equals": M["KVERB"]}),
+    ("decay", "DAMPING", "FM Decay", "DECAY", {"equals": M["FM"]}),
+    ("damping_c", "DAMPING", "Damping", "DAMP", {"equals": M["CHORD"]}),
+    ("envelope", "DAMPING", "Envelope", "ENV", {"gt": M["CHORD"]}),
     # Knob 5
-    ("position", "POSITION", None, None, {"lt": M["FM"]}, False),
-    ("feedback", "POSITION", "FM Feedback", "FDBK", {"equals": M["FM"]}, False),
-    ("position_c", "POSITION", "Position", "POS", {"equals": M["CHORD"]}, False),
-    ("vowel", "POSITION", "Vowel", "VOWEL", {"equals": M["DP-FM"]}, False),
-    ("chorus", "POSITION", "Chorus", "CHORUS", {"equals": M["DP-CH"]}, False),
-    ("reverb", "POSITION", "Reverb", "REVERB", {"equals": M["DP-RV"]}, False),
-    ("vowel_2", "POSITION", "Vowel", "VOWEL", {"equals": M["DP-F2"]}, False),
-    ("ensemble", "POSITION", "Ensemble", "ENSMBL", {"equals": M["DP-EN"]}, False),
-    ("reverb_2", "POSITION", "Reverb", "REVERB", {"equals": M["DP-R2"]}, False),
+    ("position", "POSITION", None, None, {"lt": M["FM"]}),
+    ("feedback", "POSITION", "FM Feedback", "FDBK", {"equals": M["FM"]}),
+    ("position_c", "POSITION", "Position", "POS", {"equals": M["CHORD"]}),
+    ("vowel", "POSITION", "Vowel", "VOWEL", {"equals": M["DP-FM"]}),
+    ("chorus", "POSITION", "Chorus", "CHORUS", {"equals": M["DP-CH"]}),
+    ("reverb", "POSITION", "Reverb", "REVERB", {"equals": M["DP-RV"]}),
+    ("vowel_2", "POSITION", "Vowel", "VOWEL", {"equals": M["DP-F2"]}),
+    ("ensemble", "POSITION", "Ensemble", "ENSMBL", {"equals": M["DP-EN"]}),
+    ("reverb_2", "POSITION", "Reverb", "REVERB", {"equals": M["DP-R2"]}),
 ]
 
 PAGE1 = ["level", "*structure", "*brightness", "*damping", "*position",
          "polyphony", "model", "pitch"]
 PAGE2 = ["frequency", "fine", "exciter", "spread", "velocity", "bend_range", "output", "gain"]
-PAGE3 = ["root", "scale", "steps", "reset"]
+PAGE3 = ["root", "scale", "steps", "reset", "?chord"]
 
 
 def alias_group(stored_key):
     sid = next(p[0] for p in PARAMS if p[1] == stored_key)
-    return [a for a in ALIASES if a[1] == sid]
+    sids = {sid, "CUTOFF"} if sid == "STRUCTURE" else {sid}   # knob 2's two
+    return [a for a in ALIASES if a[1] in sids]
 
 
 def check_aliases():
@@ -169,14 +178,11 @@ def chain_params():
             if "unit" in extra:
                 e["unit"] = extra["unit"]
         out.append(e)
-        for akey, sid, aname, ashort, cond, as_chord in ALIASES:
+        for akey, sid, aname, ashort, cond in ALIASES:
             if sid != pid or akey == key:
                 continue
             a = {"key": akey, "name": aname, "short_name": ashort}
-            if as_chord:
-                a.update({"type": "enum", "options": CHORDS, "default": CHORDS[0]})
-            else:
-                a.update({"type": typ, "min": lo, "max": hi, "step": step, "default": default})
+            a.update({"type": typ, "min": lo, "max": hi, "step": step, "default": default})
             out.append(a)
     return out
 
@@ -189,6 +195,9 @@ def grid_hierarchy():
                 for a in alias_group(k[1:]):
                     keys.append(a[0])
                     params.append({"key": a[0], "visible_if": dict(param="model", **a[4])})
+            elif k.startswith("?"):   # only in the models that have chords
+                keys.append(k[1:])
+                params.append({"key": k[1:], "visible_if": {"param": "model", "gt": M["FM"]}})
             else:
                 keys.append(k)
                 params.append(k)
@@ -252,18 +261,16 @@ def main():
               "static const int kLaneParams[kNumLanes] = {" +
               ", ".join("P_" + next(p[0] for p in PARAMS if p[1] == k) for k in LANES) + "};", "",
               "/* A second key for a stored parameter (its name in some MODELs). */",
-              "struct AliasDef { const char *key; int param; bool chord; };",
+              "struct AliasDef { const char *key; int param; };",
               f"static const int kNumAliases = {sum(1 for a in ALIASES if a[0] != next(p[1] for p in PARAMS if p[0] == a[1]))};",
               "static const AliasDef kAliases[] = {"]
     for akey, sid, *_rest in ALIASES:
         if akey == next(p[1] for p in PARAMS if p[0] == sid):
             continue
-        lines.append(f'  {{"{akey}", P_{sid}, {"true" if _rest[3] else "false"}}},')
+        lines.append(f'  {{"{akey}", P_{sid}}},')
     lines += ["};", "",
               f"static const int kNumModels = {len(MODELS)};",
-              f"static const int kNumChords = {len(CHORDS)};",
               "static const char *const kModelNames[] = {" + ", ".join(c_string(m[0]) for m in MODELS) + "};",
-              "static const char *const kChordNames[] = {" + ", ".join(c_string(c) for c in CHORDS) + "};",
               "",
               "/* chain_params = head + <PITCH max> + tail. */",
               "static const char kChainParamsHead[] = " + c_string(cp_head) + ";",

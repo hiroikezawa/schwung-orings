@@ -2,7 +2,7 @@
   "id": "orings",
   "name": "oRings",
   "abbrev": "oRNGS",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Physical-modelling resonator from the original open-source Rings DSP at its own 48 kHz: modal, sympathetic strings, inharmonic string, 2-op FM, Western Chords, Karplusverb and the Disastrous Peace string machine, 1-4 voices. Struck from MIDI and on every 1/16 of Move's transport: 16 trigger pads, touch-recorded knob motion, a Phrase Gen RANDOM pad, preset pads and a PITCH knob set in the scale",
   "author": "Hiro Ikezawa",
   "license": "MIT",
@@ -49,24 +49,14 @@
         "default": 0.25
       },
       {
-        "key": "chord",
-        "name": "Chord",
-        "short_name": "CHORD",
-        "type": "enum",
-        "options": [
-          "OCT",
-          "5",
-          "sus4",
-          "m",
-          "m7",
-          "m9",
-          "m11",
-          "69",
-          "M9",
-          "M7",
-          "M"
-        ],
-        "default": "OCT"
+        "key": "structure_c",
+        "name": "Structure",
+        "short_name": "STRUCT",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 0.25
       },
       {
         "key": "brightness",
@@ -446,6 +436,36 @@
         ],
         "default": "-",
         "access": "write"
+      },
+      {
+        "key": "chord",
+        "name": "Chord",
+        "short_name": "CHORD",
+        "type": "enum",
+        "options": [
+          "OCT",
+          "5",
+          "sus4",
+          "m",
+          "m7",
+          "m9",
+          "m11",
+          "69",
+          "M9",
+          "M7",
+          "M"
+        ],
+        "default": "sus4"
+      },
+      {
+        "key": "cutoff",
+        "name": "Cutoff",
+        "short_name": "CUTOFF",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "default": 1.0
       }
     ]
   }

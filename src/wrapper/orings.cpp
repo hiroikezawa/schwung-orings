@@ -24,6 +24,10 @@ const float kPotCoefficient = 0.01f;
 // ~0.2 the strike is filtered 15-20 dB down and the voice nearly mutes. FM keeps
 // 0..1 (0 = a pure sine) and the string synth is not muted by it.
 const float kBrightnessFloor = 0.2f;
+// CUTOFF (Disastrous Peace): 2-pole low-pass, no resonance. The bottom is kept
+// where a chord is still heard; at the knob's top it is bypassed outright.
+const float kCutoffMinHz = 150.0f, kCutoffMaxHz = 20000.0f;
+const float kCutoffQ = 0.707f, kCutoffOpen = 0.995f;
 // Output-stage smoothing per block (LEVEL, GAIN, OUTPUT): ~2.5 ms.
 const float kOutCoefficient = 0.2f;
 // The V/OCT note sits relative to the tonic; tonic = kTonic + FREQUENCY, so
@@ -115,8 +119,8 @@ void ORings::Init(uint32_t seed) {
   pot_[1] = values_[P_BRIGHTNESS];
   pot_[2] = values_[P_DAMPING];
   pot_[3] = values_[P_POSITION];
-  chord_ = 0;
-  ApplyStructure();
+  pot_[4] = values_[P_CUTOFF];
+  chord_ = static_cast<int>(values_[P_CHORD]);
   blocks_since_strum_ = kMinStrumBlocks;
   note_ = 60 - kTonic;
   resampler_.Reset();
@@ -137,6 +141,7 @@ void ORings::InitParts() {
   strummer_.Init(0.01f, rings::kSampleRate / rings::kMaxBlockSize);
   part_.Init(reverb_part_);
   string_synth_.Init(reverb_synth_);
+  for (stmlib::Svf &f : cutoff_) f.Init();
 }
 
 void ORings::ApplyModelNow() {
@@ -152,10 +157,6 @@ void ORings::ApplyModelNow() {
     part_.set_model(static_cast<rings::ResonatorModel>(m.index));
   }
 }
-
-// CvScaler::Read's chord hysteresis (common/rings_models.h), fed by the
-// STRUCTURE value (the hardware feeds it the unfiltered STRUCTURE pot + CV).
-void ORings::ApplyStructure() { chord_ = ChordHysteresis(Effective(P_STRUCTURE), chord_); }
 
 int ORings::PitchNote(float index) const {
   return PitchMidi(static_cast<int>(index + 0.5f), static_cast<int>(values_[P_ROOT]),
@@ -182,7 +183,6 @@ bool ORings::SetParam(int id, float v) {
     if (v > top) v = top;
   }
   values_[id] = v;
-  if (id == P_STRUCTURE) ApplyStructure();
   return true;
 }
 
@@ -201,15 +201,6 @@ bool ORings::SetByKey(const char *key, const char *text) {
   }
   const int a = FindAlias(key);
   if (a < 0) return false;
-  if (kAliases[a].chord) {
-    int i;
-    if (ParseNumber(text, &v)) i = static_cast<int>(floorf(v + 0.5f));
-    else if ((i = OptionIndex(kChordNames, kNumChords, text)) < 0) return false;
-    if (i < 0) i = 0;
-    if (i > kNumChords - 1) i = kNumChords - 1;
-    // The STRUCTURE value at the centre of that chord's zone.
-    return SetParam(P_STRUCTURE, static_cast<float>(i) / (kNumChords - 1));
-  }
   return ParseNumber(text, &v) && SetParam(kAliases[a].param, v);
 }
 
@@ -219,12 +210,6 @@ int ORings::GetByKey(const char *key, char *buf, int size, bool effective) const
   if (id < 0) {
     const int a = FindAlias(key);
     if (a < 0) return -1;
-    if (kAliases[a].chord) {
-      // What plays is the hysteresis' answer; the knob, the nearest chord.
-      const int c = effective ? chord_
-                              : static_cast<int>(values_[P_STRUCTURE] * (kNumChords - 1) + 0.5f);
-      return Format(buf, size, snprintf(buf, size, "%d", c));
-    }
     id = kAliases[a].param;
   }
   if (id == P_RESET) return Format(buf, size, snprintf(buf, size, "0"));
@@ -423,7 +408,7 @@ void ORings::RenderBlock(float *out, float *aux) {
 
   ps.note = note_;
   ps.tonic = static_cast<float>(kTonic) + values_[P_FREQ];
-  ApplyStructure();
+  chord_ = static_cast<int>(values_[P_CHORD]);
   ps.chord = chord_;
 
   Patch patch;
@@ -431,6 +416,7 @@ void ORings::RenderBlock(float *out, float *aux) {
   pot_[1] += kPotCoefficient * (Effective(P_BRIGHTNESS) - pot_[1]);
   pot_[2] += kPotCoefficient * (Effective(P_DAMPING) - pot_[2]);
   pot_[3] += kPotCoefficient * (Effective(P_POSITION) - pot_[3]);
+  pot_[4] += kPotCoefficient * (Effective(P_CUTOFF) - pot_[4]);
   // cv_scaler.cc ATTENUVERT ranges.
   patch.structure = pot_[0] < 0.9995f ? pot_[0] : 0.9995f;
   const ModelDef &md = kModels[applied_model_];
@@ -450,6 +436,18 @@ void ORings::RenderBlock(float *out, float *aux) {
   if (kModels[applied_model_].string_synth) {
     string_synth_.set_exciter_gain(gain);
     string_synth_.Process(ps, patch, in_, out, aux, kBlock);
+    // CUTOFF. The filters run even when open, so opening it past the top
+    // never restarts them from stale state.
+    const float hz = kCutoffMinHz * powf(kCutoffMaxHz / kCutoffMinHz, pot_[4]);
+    float low[2][kBlock];
+    for (int c = 0; c < 2; ++c) {
+      cutoff_[c].set_f_q<stmlib::FREQUENCY_ACCURATE>(hz / rings::kSampleRate, kCutoffQ);
+      cutoff_[c].Process<stmlib::FILTER_MODE_LOW_PASS>(c ? aux : out, low[c], kBlock);
+    }
+    if (pot_[4] < kCutoffOpen) {
+      memcpy(out, low[0], sizeof(low[0]));
+      memcpy(aux, low[1], sizeof(low[1]));
+    }
   } else {
     part_.set_exciter_gain(gain);
     part_.Process(ps, patch, in_, out, aux, kBlock);
@@ -698,6 +696,9 @@ bool ORings::ReadState(const char *text) {
     if (i == P_RESET || i == P_ROOT || i == P_SCALE) continue;
     SetParam(i, value(i));
   }
+  // Before 0.3.0 STRUCTURE was what selected the chord.
+  if (!json::FindMember(p, root_end, kParams[P_CHORD].key))
+    SetParam(P_CHORD, floorf(values_[P_STRUCTURE] * (kParams[P_CHORD].max) + 0.5f));
   const char *gp = json::FindMember(p, root_end, "g");
   gates_ = 0xFFFFu;
   if (gp && json::ReadNumber(gp, root_end, &f) && f == floorf(f) && f >= 0.0f && f <= 65535.0f)

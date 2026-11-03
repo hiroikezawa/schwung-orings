@@ -55,7 +55,6 @@ let hwShift = false, shown = true, padBlocked = false;
 const leds = {};
 const files = new Map();
 function readValue(k) {
-    if (k === "chord") return String(Math.round(Number(values.structure) * 10));
     if (ALIAS_BASE[k]) return values[ALIAS_BASE[k]];
     return k in values ? values[k] : "";
 }
@@ -76,7 +75,6 @@ const store = {
         writes.push([key, String(value)]);
         if (key === "gate_toggle") gates[Number(value)] = !gates[Number(value)];
         if (key === "state") values.model = String(JSON.parse(value).model);
-        if (key === "chord") { values.structure = (Number(value) / 10).toFixed(4); return true; }
         const base = ALIAS_BASE[key] || key;
         if (base in values) values[base] = String(value);
         return true;
@@ -134,13 +132,13 @@ const EXPECT = {
     STRNG: ["structure", "brightness", "damping", "position"],
     KVERB: ["structure", "brightness", "decay_verb", "position"],
     FM: ["ratio", "fm_index", "decay", "feedback"],
-    CHORD: ["chord", "brightness_c", "damping_c", "position_c"],
-    "DP-FM": ["chord", "registration", "envelope", "vowel"],
-    "DP-CH": ["chord", "registration", "envelope", "chorus"],
-    "DP-RV": ["chord", "registration", "envelope", "reverb"],
-    "DP-F2": ["chord", "registration", "envelope", "vowel_2"],
-    "DP-EN": ["chord", "registration", "envelope", "ensemble"],
-    "DP-R2": ["chord", "registration", "envelope", "reverb_2"],
+    CHORD: ["structure_c", "brightness_c", "damping_c", "position_c"],
+    "DP-FM": ["cutoff", "registration", "envelope", "vowel"],
+    "DP-CH": ["cutoff", "registration", "envelope", "chorus"],
+    "DP-RV": ["cutoff", "registration", "envelope", "reverb"],
+    "DP-F2": ["cutoff", "registration", "envelope", "vowel_2"],
+    "DP-EN": ["cutoff", "registration", "envelope", "ensemble"],
+    "DP-R2": ["cutoff", "registration", "envelope", "reverb_2"],
 };
 const full = (m) => ["level", ...EXPECT[m], "polyphony", "model", "pitch"];
 /* A preset or Schwung's own screen changes MODEL under us: the poll sees it. */
