@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run build/bench-arm64 (or, with BENCH=fx, build/bench-fx-arm64) on the Move (no sftp there: streamed over ssh into
 # /data/UserData, never /tmp), then delete it.
-#   scripts/bench_move.sh ableton@192.168.1.42 -i ~/.ssh/move_key
+#   scripts/bench_move.sh ableton@move.local
 # Copyright (c) 2026 Hiro Ikezawa. MIT License (see LICENSE).
 set -euo pipefail
 MODULE="$(cd "$(dirname "$0")/.." && pwd)"

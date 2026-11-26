@@ -1,300 +1,302 @@
 # oRings FX
 
-（モジュール ID: `orings-fx`。「oRings FX」は開発用の仮の名前です）
+**English** | [日本語](README.ja.md)
 
-Schwung / Ableton Move 用の **Audio FX** です。中身は Mutable Instruments の
-ユーロラック・モジュール **Rings**（レゾネーター）の**非公式移植**で、
-Emilie Gillet 氏が MIT ライセンスで公開している公式ファームウェアの DSP ソースコードを
-そのまま同梱して動かしています。共鳴体を新しく作り直したり、コムフィルターや
-ディレイ、リバーブで似せたりはしていません。
+(Module ID: `orings-fx`. "oRings FX" is a provisional development name.)
 
-Rings の **IN ジャック**にケーブルを挿したときの動作を、Move のトラックの音で
-再現します。入ってきた音（ドラム、シンセ、ノイズなど）が共鳴体を「叩き」、
-金属板・鐘・弦が鳴って、自然に減衰します。
+An **Audio FX** for Schwung / Ableton Move. It is an **unofficial port** of Mutable
+Instruments' Eurorack module **Rings** (a resonator): the DSP source code of the
+official firmware, published by Emilie Gillet under the MIT licence, is bundled and run
+as-is. The resonators have not been rebuilt, nor imitated with comb filters, delays or
+reverbs.
 
-- Rings の 3 つの標準モデル（Modal Resonator / Sympathetic Strings /
-  Modulated・Inharmonic String）と、公式の隠しモード
-  （**2-op FM**、**Western Chords**、**Karplusverb**、
-  **Disastrous Peace** ＝ ストリングマシン＋エフェクト 6 種類）を
-  MODEL ノブで選べます。
-- 入力の**自動ストラム**には、Rings 自身のオンセット検出（`OnsetDetector`）を
-  そのまま使っています。MIDI がなくても、ドラムの一打ごとに動きます。
-- 音を作る部分（`rings::Part`、`rings::StringSynthPart`、`rings::Strummer`）は、
-  実機のファームウェア `rings.cc` と**同じ呼び出し方・同じ順番**で、
-  入力のノイズゲートも `rings.cc` と同じものを通しています。
-- 実機と同じ **48 kHz・24 サンプルブロック**で DSP を動かし、Move の 44.1 kHz と
-  の間をリサンプルします。
-- テストで、このモジュールの Rings 部分の出力が、公式 DSP を実機と同じ配線
-  （IN に入力、STRUM は自動検出 または 外部トリガー）で直接駆動したときの出力と
-  **1 サンプル単位で完全一致**することを、全モデル × 1/2/4 ボイスで確認しています。
+It reproduces, with a Move track's audio, what Rings does with a cable plugged into its
+**IN jack**. The incoming sound (drums, synths, noise and so on) "strikes" the
+resonator, and metal plates, bells and strings ring and decay naturally.
+
+- Rings' 3 standard models (Modal Resonator / Sympathetic Strings /
+  Modulated/Inharmonic String) and the official hidden modes (**2-op FM**, **Western
+  Chords**, **Karplusverb**, and **Disastrous Peace** = a string machine + 6 effects)
+  can be chosen with the MODEL knob.
+- For **automatic strumming** from the input, Rings' own onset detection
+  (`OnsetDetector`) is used as it is. It acts on every drum hit, even without MIDI.
+- The sound-producing parts (`rings::Part`, `rings::StringSynthPart`,
+  `rings::Strummer`) are run **with the same calls in the same order** as the hardware
+  firmware's `rings.cc`, and the input also goes through the same noise gate as in
+  `rings.cc`.
+- The DSP runs at the hardware's **48 kHz in 24-sample blocks**, resampled to and from
+  Move's 44.1 kHz.
+- Tests confirm that the Rings part of this module's output is **identical sample for
+  sample** to the official DSP driven directly with the same wiring as the hardware
+  (input into IN, STRUM from automatic detection or an external trigger), across every
+  model × 1/2/4 voices.
 
 | | |
 |---|---|
-| 残したもの | 全モデルの共鳴体（モーダル 64 モード、弦 8 本、FM ボイス、ストリングシンセ 12 ボイス）、入力ノイズゲート、オンセット検出と STRUM 処理、内蔵エキサイター（モデルごとのパルス／ノイズバースト／FM エンベロープ）、ボイス割り当て、ODD / EVEN の 2 出力、リミッター、リバーブ／コーラス／アンサンブル／フォルマント |
-| 省いたもの | V/OCT 入力（音程は FREQ ノブだけで決める）、各ノブの CV 入力とアッテヌバーター、キャリブレーション、LED とボタン操作 |
-| 加えたもの | MIX（Dry/Wet）、入力ゲイン、検出感度、ストラムの切り替え（自動 / MIDI / なし）、内蔵エキサイターの ON/OFF、出力の振り分けとステレオ幅、Wet の音量 |
+| Kept | The resonators of every model (modal with 64 modes, 8 strings, the FM voice, the string synth's 12 voices), the input noise gate, onset detection and STRUM processing, the internal exciter (per-model pulse / noise burst / FM envelope), voice allocation, the two outputs ODD / EVEN, the limiter, reverb/chorus/ensemble/formant |
+| Left out | The V/OCT input (pitch is set by the FREQ knob alone), the CV inputs and attenuverters of each knob, calibration, LEDs and buttons |
+| Added | MIX (dry/wet), input gain, detection sensitivity, strum switching (auto / MIDI / none), internal exciter ON/OFF, output routing and stereo width, wet level |
 
 ---
 
-## 使い方（はじめての操作）
+## Getting started
 
-1. Move のトラックの Schwung スロット（またはマスター FX）で、
-   Audio FX に **oRings FX** を選びます。
-2. ドラムやシンセを鳴らします。入力が共鳴体を叩き、FREQ の音程で
-   金属的な響きや弦の響きが加わります。
-3. ノブ 1（MIX）で原音とのバランスを決めます。0 % で原音そのまま、
-   100 % で Rings の音だけです。
-4. ノブ 7（MODEL）でモデルを、ノブ 6（FREQ）で共鳴の音程（C0〜C7）を選びます。
-5. ノブ 4（DAMP）で余韻の長さ、ノブ 3（BRIGHT）で明るさが変わります。
-6. ジョグを回すと 2 ページ目（Advanced）に移ります。
+1. In a Move track's Schwung slot (or Master FX), choose **oRings FX** as an Audio FX.
+2. Play drums or a synth. The input strikes the resonator, adding metallic or string
+   resonance at FREQ's pitch.
+3. Set the balance with the original sound with knob 1 (MIX). 0 % is the original
+   sound as it is, 100 % only Rings' sound.
+4. Choose the model with knob 7 (MODEL) and the resonance pitch (C0–C7) with knob 6
+   (FREQ).
+5. Knob 4 (DAMP) changes the length of the tail, knob 3 (BRIGHT) the brightness.
+6. Turn the jog wheel to move to page 2 (Advanced).
 
-**FREQ は「入力の音程を検出する」機能ではありません。** 共鳴体そのものの
-基音を決めるノブです（実機の FREQUENCY ノブと同じ）。入力がどんな音程でも、
-共鳴は FREQ の音程で鳴ります。
+**FREQ does not "detect the input's pitch".** It sets the resonator's own fundamental
+(the same as the hardware's FREQUENCY knob). Whatever pitch the input has, the
+resonance sounds at FREQ's pitch.
 
 ---
 
-## 信号の流れ
+## Signal flow
 
 ```
-入力（ステレオ）─┬─────────── 遅延 72 サンプル（Wet と揃える）───── Dry ─┐
-                 │                                                       │
-                 └ (L+R)/2 → IN GN → ±1.0 でクリップ → 44.1→48 kHz      MIX
-                   → ノイズゲート（rings.cc）→ Strummer（オンセット検出）（等パワー）
-                   → Part / StringSynthPart → ODD / EVEN                 │
-                   → ROUTE・WIDTH → LEVEL → 48→44.1 kHz ─────────── Wet ─┘
+input (stereo) ─┬──────────── delayed 72 samples (aligned with wet) ───── Dry ─┐
+                │                                                              │
+                └ (L+R)/2 → IN GN → clip at ±1.0 → 44.1→48 kHz                MIX
+                  → noise gate (rings.cc) → Strummer (onset detection)  (equal power)
+                  → Part / StringSynthPart → ODD / EVEN                        │
+                  → ROUTE, WIDTH → LEVEL → 48→44.1 kHz ─────────────────── Wet ─┘
 ```
 
-- Rings の IN ジャックはモノラルなので、ステレオ入力は L と R の平均を入れます
-  （モノラル音源のレベルはそのまま）。原音（Dry）はステレオのまま別経路を通り、
-  Rings の処理は一切かかりません。
-- 入力が大きすぎるときは、実機のオーディオコーデックと同じくフルスケール
-  （±1.0）で頭打ちになります。共鳴体の手前で止まるので、異常発振はしません。
-- 公式の Disastrous Peace では、IN の音は共鳴体ではなく**エフェクト**
-  （フォルマント／コーラス／リバーブ／アンサンブル）に入ります（ノイズゲートも
-  通りません）。このモジュールでもその通りで、DP-* では入力にエフェクトが
-  かかった音と、ストリングマシンの和音が出ます。
+- Rings' IN jack is mono, so a stereo input goes in as the average of L and R (a mono
+  source keeps its level). The original sound (dry) takes a separate path in stereo,
+  with no Rings processing at all.
+- When the input is too loud it tops out at full scale (±1.0), like the hardware's
+  audio codec. It stops before the resonator, so there is no runaway oscillation.
+- In the official Disastrous Peace, the IN sound goes into the **effect** (formant /
+  chorus / reverb / ensemble), not the resonator (and does not pass the noise gate).
+  This module does the same, so in DP-* you get the input with the effect applied plus
+  the string machine's chords.
 
 ---
 
-## ノブ
+## Knobs
 
-### 1 ページ目（Main）
+### Page 1 (Main)
 
-| ノブ | 表示 | 内容 |
+| Knob | Display | What it does |
 |---|---|---|
-| 1 | MIX | Dry / Wet 0〜100 %（等パワー。0 % = 原音、100 % = Wet だけ） |
-| 2 | STRUCT など | 倍音・弦の音程関係・不協和の度合い（モデルにより名前が変わる。下表） |
-| 3 | BRIGHT など | 明るさ（励振と共鳴の高域） |
-| 4 | DAMP など | 減衰時間 |
-| 5 | POS など | 叩く位置（倍音の出方） |
-| 6 | FREQ | 共鳴体の基音 C0〜C7（半音単位、ノート名で表示）。初期値 C2 |
-| 7 | MODEL | 12 モード（下表） |
-| 8 | LEVEL | Wet の音量 -24〜+12 dB（Dry には効きません） |
+| 1 | MIX | Dry / wet 0–100 % (equal power; 0 % = original, 100 % = wet only) |
+| 2 | STRUCT etc. | Harmonics, the strings' pitch relationships, degree of dissonance (the name changes with the model; table below) |
+| 3 | BRIGHT etc. | Brightness (highs of the excitation and resonance) |
+| 4 | DAMP etc. | Decay time |
+| 5 | POS etc. | Where it is struck (how the harmonics come out) |
+| 6 | FREQ | The resonator's fundamental C0–C7 (semitone steps, shown as a note name). Default C2 |
+| 7 | MODEL | 12 modes (table below) |
+| 8 | LEVEL | Wet level -24 to +12 dB (no effect on the dry) |
 
-### MODEL と、ノブ 2〜5 の名前
+### MODEL and the names of knobs 2–5
 
-| MODEL | 内容 | 2 | 3 | 4 | 5 |
+| MODEL | What it is | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
-| MODAL | モーダル共鳴体（板・棒・膜・鐘）。ハイハットがベルのように鳴る | STRUCT | BRIGHT | DAMP | POS |
-| SYMPA | 共鳴弦（主弦＋共鳴して鳴る弦） | STRUCT | BRIGHT | DAMP | POS |
-| STRNG | 変調・非調和の弦（STRUCT で弦の硬さ・非線形さ） | STRUCT | BRIGHT | DAMP | POS |
-| KVERB | Karplusverb（弦＋リバーブ） | STRUCT | BRIGHT | DCY+RV | POS |
-| FM | 2 オペレーター FM。入力のエンベロープで FM がかかる | RATIO | INDEX | DECAY | FDBK |
-| CHORD | Western Chords（共鳴弦が和音に固定） | CHORD | BRIGHT | DAMP | POS |
-| DP-FM | Disastrous Peace＋フォルマント | CHORD | REGIST | ENV | VOWEL |
-| DP-CH | Disastrous Peace＋コーラス | CHORD | REGIST | ENV | CHORUS |
-| DP-RV | Disastrous Peace＋リバーブ | CHORD | REGIST | ENV | REVERB |
-| DP-F2 | Disastrous Peace＋フォルマント 2 | CHORD | REGIST | ENV | VOWEL |
-| DP-EN | Disastrous Peace＋アンサンブル | CHORD | REGIST | ENV | ENSMBL |
-| DP-R2 | Disastrous Peace＋リバーブ 2 | CHORD | REGIST | ENV | REVERB |
+| MODAL | Modal resonator (plate, bar, membrane, bell). Hi-hats ring like bells | STRUCT | BRIGHT | DAMP | POS |
+| SYMPA | Sympathetic strings (a main string + strings ringing in sympathy) | STRUCT | BRIGHT | DAMP | POS |
+| STRNG | Modulated/inharmonic string (STRUCT sets the string's stiffness and nonlinearity) | STRUCT | BRIGHT | DAMP | POS |
+| KVERB | Karplusverb (string + reverb) | STRUCT | BRIGHT | DCY+RV | POS |
+| FM | 2-operator FM. The input's envelope applies the FM | RATIO | INDEX | DECAY | FDBK |
+| CHORD | Western Chords (sympathetic strings fixed to a chord) | CHORD | BRIGHT | DAMP | POS |
+| DP-FM | Disastrous Peace + formant | CHORD | REGIST | ENV | VOWEL |
+| DP-CH | Disastrous Peace + chorus | CHORD | REGIST | ENV | CHORUS |
+| DP-RV | Disastrous Peace + reverb | CHORD | REGIST | ENV | REVERB |
+| DP-F2 | Disastrous Peace + formant 2 | CHORD | REGIST | ENV | VOWEL |
+| DP-EN | Disastrous Peace + ensemble | CHORD | REGIST | ENV | ENSMBL |
+| DP-R2 | Disastrous Peace + reverb 2 | CHORD | REGIST | ENV | REVERB |
 
-- 名前が変わっても、中で動かしている値は同じ 4 つ（STRUCTURE / BRIGHTNESS /
-  DAMPING / POSITION）です。公式 DSP がモードごとに割り当てている意味を、
-  そのまま画面に表示しています。
-- **FM**: RATIO = モジュレーターの周波数比、INDEX = FM の深さ、
-  DECAY = エンベロープの長さ、FDBK = フィードバック。入力があると、
-  公式の FM ボイスが入力のエンベロープフォロワーで変調されます。
-- **CHORD**: ノブ 2 で 11 種類の和音（OCT, 5, sus4, m, m7, m9, m11, 69, M9, M7, M）。
-- **Disastrous Peace**: REGIST = オルガンの倍音の組み合わせ、
-  ENV = エンベロープの長さ（右端でドローン）、ノブ 5 = エフェクトの量。
-- **KVERB**: DCY+RV は弦の減衰とリバーブの量・長さを同時に動かします。
+- Whatever the names, the values moved inside are the same four (STRUCTURE /
+  BRIGHTNESS / DAMPING / POSITION). The meaning the official DSP assigns to them per
+  mode is shown on screen as it is.
+- **FM**: RATIO = the modulator's frequency ratio, INDEX = FM depth, DECAY = envelope
+  length, FDBK = feedback. With input, the official FM voice is modulated by the input's
+  envelope follower.
+- **CHORD**: knob 2 chooses one of 11 chords (OCT, 5, sus4, m, m7, m9, m11, 69, M9, M7, M).
+- **Disastrous Peace**: REGIST = the organ's combination of partials, ENV = envelope
+  length (a drone fully right), knob 5 = amount of effect.
+- **KVERB**: DCY+RV moves the string's decay and the reverb's amount and length together.
 
-### 2 ページ目（Advanced）
+### Page 2 (Advanced)
 
-| ノブ | 表示 | 内容 |
+| Knob | Display | What it does |
 |---|---|---|
-| 1 | IN GN | Rings への入力レベル -24〜+24 dB |
-| 2 | SENS | オンセット検出の感度 0〜100 %（STRUM が AUTO のときだけ） |
-| 3 | STRUM | AUTO（入力から自動検出）/ MIDI（ノートオン）/ OFF |
-| 4 | EXCITE | 内蔵エキサイター OFF / ON（初期値 OFF） |
-| 5 | POLY | ボイス数 1 / 2 / 4（初期値 1、実機の初期設定と同じ） |
-| 6 | ROUTE | STEREO（ODD = 左、EVEN = 右）/ ODD / EVEN |
-| 7 | FINE | 微調整 ±100 セント |
-| 8 | WIDTH | ステレオ幅 0〜100 %（ROUTE が STEREO のときだけ） |
+| 1 | IN GN | Input level into Rings -24 to +24 dB |
+| 2 | SENS | Onset detection sensitivity 0–100 % (only when STRUM is AUTO) |
+| 3 | STRUM | AUTO (detected from the input) / MIDI (note-ons) / OFF |
+| 4 | EXCITE | Internal exciter OFF / ON (default OFF) |
+| 5 | POLY | Number of voices 1 / 2 / 4 (default 1, the same as the hardware's default) |
+| 6 | ROUTE | STEREO (ODD = left, EVEN = right) / ODD / EVEN |
+| 7 | FINE | Fine tuning ±100 cents |
+| 8 | WIDTH | Stereo width 0–100 % (only when ROUTE is STEREO) |
 
-その設定では効かないノブ（STRUM が AUTO 以外のときの SENS、Disastrous Peace の
-ときの EXCITE、ROUTE が STEREO 以外のときの WIDTH）は、その場所が
-**点線の「--」**（読み取り専用）に変わります。ほかのノブの位置は動きません。
-
----
-
-## STRUM（ストラム）
-
-Rings の「ストラム」は、**次のボイスに切り替えて、内蔵エキサイターを鳴らす**
-合図です。入力音そのものは、ストラムがなくても常に共鳴体へ入ります。
-
-- **AUTO**: 実機で STRUM ジャックが空いているときと同じく、Rings 自身の
-  オンセット検出が入力の立ち上がりを見つけてストラムします。
-  - 検出のあとは 40 ms 次のストラムを受け付けません（公式の Strummer の仕様）。
-    20 ms 間隔の連打を入れてもストラムは暴走しません。
-  - 一定のノイズや持続音では反応しません（統計的に「いつもと違う」立ち上がり
-    だけを拾う仕組みのため）。
-  - **起動直後の約 1 秒は検出が慣れていない**ため、最初の数打を取りこぼします
-    （公式アルゴリズムの性質）。
-  - 低い減衰音（キック）では、一打に対して約 45 ms 後にもう 1 回反応することが
-    あります（これも公式アルゴリズムのままの挙動です）。1 ボイス・エキサイター
-    OFF では音は変わりません。
-  - **SENS** は検出器に入る信号だけを ±30 dB 増減します（50 % ＝ 実機と同じ）。
-    共鳴体に入る音は変わりません。小さな入力に反応させたいときは上げます。
-- **MIDI**: STRUM ジャックにトリガーを入れたときと同じです。そのスロットに届く
-  MIDI のノートオンが 1 回ずつストラムになります（ノート番号は使いません。
-  音程は FREQ で決まります）。
-- **OFF**: ストラムしません。入力は 1 つのボイスを鳴らし続けます。
-
-**Disastrous Peace について。** 公式ファームウェアでは、Disastrous Peace の
-オンセット検出には入力が渡されません（ストリングマシンはトリガーか V/OCT で
-しか鳴りません）。このモジュールでは STRUM が **AUTO** のときだけ、入力の
-立ち上がりでストリングマシンの和音を鳴らします（ドラムで和音が鳴る）。
-MIDI または OFF にすると公式どおりの動作です。
-
-## 内蔵エキサイター（EXCITE）
-
-初期値は **OFF** です。OFF のときは、実機で IN にケーブルを挿したときと同じく、
-入力音だけが共鳴体を叩きます。ドラムに余計なパルスやノイズが重なりません。
-
-ON にすると、ストラムのたびに Rings 自身のエキサイター（モーダルのパルス、
-弦のノイズバースト、FM のエンベロープ）も鳴り、入力と一緒に共鳴体を叩きます。
-**鳴るのはストラムのときだけ**です（AUTO なら検出した一打ごと、MIDI なら
-ノートオンごと、OFF なら鳴りません）。無音の入力で勝手に鳴ることはありません。
-実機にはない組み合わせ（IN を挿したまま内蔵エキサイターを使う）ですが、
-処理は公式の `Part` のエキサイターの経路そのものです。
-
-## ODD / EVEN、ROUTE、WIDTH
-
-Rings には ODD と EVEN の 2 つの出力があります。
-
-- **1 ボイス**: 1 つの共鳴体の 2 つのピックアップ（倍音の取り出し方が違う）。
-- **2・4 ボイス**: ボイスが交互に ODD と EVEN に振り分けられます。
-
-ROUTE と WIDTH の役割は重ならないように分けています。
-
-- **ROUTE = STEREO**: ODD を左、EVEN を右。WIDTH 100 % でそのまま、
-  0 % で ODD＋EVEN の平均（モノラル）が左右に出ます。**「SUM」は WIDTH 0 %**
-  のことなので、別の選択肢にはしていません。
-- **ROUTE = ODD / EVEN**: 片方の出力だけを左右に（実機でジャックを 1 本だけ
-  使ったときの片側）。モノラルなので WIDTH は「--」になります。
+A knob that has no effect in the current setting (SENS when STRUM is not AUTO, EXCITE
+in Disastrous Peace, WIDTH when ROUTE is not STEREO) turns into **a dotted "--"**
+(read-only) in its place. The positions of the other knobs do not move.
 
 ---
 
-## MIX と Dry
+## STRUM
 
-- MIX は**等パワー**（Dry = cos、Wet = sin）です。50 % で極端な音量の落ち込みや
-  増加が出ません。
-- **MIX 0 % では、入力がビット単位でそのまま出ます**（テストで全モデル確認）。
-- Wet 経路（44.1→48 kHz→Rings の 24 サンプルブロック→44.1 kHz）は
-  **72 サンプル（1.6 ms）**遅れます。Dry も同じだけ遅らせて、MIX で混ぜたときに
-  位相がずれないようにしています（MIX 0 % でも 72 サンプル遅れます）。
-- MIX を動かしたときは約 10 ms でなめらかに変わるので、クリックは出ません。
-- Wet には、0.9（-0.9 dBFS）を超えた部分だけをなめらかに丸める
-  クリップ保護がかかっています。MIX が 0 % と 100 % の間では、Dry＋Wet の
-  合計にも同じ保護がかかります（0.9 以下の音には何もしません）。
+A Rings "strum" is the signal to **switch to the next voice and sound the internal
+exciter**. The input sound itself always goes into the resonator, strum or no strum.
+
+- **AUTO**: as on the hardware with the STRUM jack empty, Rings' own onset detection
+  finds the input's attacks and strums.
+  - After a detection, no further strum is accepted for 40 ms (how the official
+    Strummer works). Hits 20 ms apart do not make the strums run away.
+  - It does not react to steady noise or sustained sounds (because it picks up only
+    attacks that are statistically "out of the ordinary").
+  - **For about the first second after start-up the detector has not settled**, so the
+    first few hits are missed (a property of the official algorithm).
+  - With a low decaying sound (a kick) it may react once more about 45 ms after a hit
+    (also the official algorithm's behaviour). With 1 voice and the exciter OFF the
+    sound does not change.
+  - **SENS** raises or lowers only the signal going into the detector by ±30 dB (50 % =
+    the same as the hardware). The sound going into the resonator does not change.
+    Raise it to make it react to quiet input.
+- **MIDI**: the same as feeding a trigger into the STRUM jack. Each MIDI note-on
+  reaching that slot becomes one strum (the note number is not used; the pitch is set by
+  FREQ).
+- **OFF**: no strums. The input keeps sounding a single voice.
+
+**About Disastrous Peace.** In the official firmware, Disastrous Peace's onset
+detection is not given the input (the string machine sounds only from a trigger or
+V/OCT). In this module, only when STRUM is **AUTO**, the input's attacks sound the
+string machine's chords (drums play chords). With MIDI or OFF it behaves as the
+official firmware does.
+
+## Internal exciter (EXCITE)
+
+The default is **OFF**. When OFF, as on the hardware with a cable in IN, only the input
+sound strikes the resonator. No extra pulses or noise are layered on the drums.
+
+When ON, at every strum Rings' own exciter (the modal pulse, the string's noise burst,
+FM's envelope) also sounds and strikes the resonator together with the input. **It
+sounds only at strums** (every detected hit in AUTO, every note-on in MIDI, never in
+OFF). It never sounds by itself with silent input. This is a combination the hardware
+does not offer (using the internal exciter with IN plugged in), but the processing is
+the official `Part`'s exciter path itself.
+
+## ODD / EVEN, ROUTE, WIDTH
+
+Rings has two outputs, ODD and EVEN.
+
+- **1 voice**: two pickups on one resonator (different ways of taking out the harmonics).
+- **2 and 4 voices**: voices are assigned to ODD and EVEN in turn.
+
+The roles of ROUTE and WIDTH are split so they do not overlap.
+
+- **ROUTE = STEREO**: ODD left, EVEN right. At WIDTH 100 % as is; at 0 % the average of
+  ODD + EVEN (mono) comes out on both sides. **"SUM" is WIDTH 0 %**, so it is not a
+  separate choice.
+- **ROUTE = ODD / EVEN**: only one output on both sides (one side, as when using just
+  one jack on the hardware). It is mono, so WIDTH shows "--".
 
 ---
 
-## 実機との関係（何を何に置き換えたか）
+## MIX and dry
 
-| 実機 | このモジュール |
+- MIX is **equal power** (dry = cos, wet = sin). At 50 % there is no extreme dip or rise
+  in level.
+- **At MIX 0 % the input comes out bit for bit** (checked for every model in tests).
+- The wet path (44.1→48 kHz → Rings' 24-sample blocks → 44.1 kHz) is **72 samples
+  (1.6 ms)** late. The dry is delayed by the same amount so their phases do not drift
+  apart when MIX blends them (it is 72 samples late even at MIX 0 %).
+- Moving MIX changes it smoothly over about 10 ms, so there are no clicks.
+- The wet has clip protection that rounds off smoothly only what exceeds 0.9 (-0.9 dBFS).
+  With MIX between 0 % and 100 %, the dry + wet sum gets the same protection (nothing is
+  done to sound at or below 0.9).
+
+---
+
+## Relation to the hardware (what replaces what)
+
+| Hardware | This module |
 |---|---|
-| IN ジャック | Move の音（L＋R の平均）、IN GN、フルスケールでクリップ |
-| V/OCT（空き） | 空きのまま。FREQ（C0〜C7）だけで音程が決まる |
-| FREQUENCY ノブ | FREQ（半音単位。変更は実機のポットと同じく約 50 ms でなめらかに移る） |
-| FM 入力 | FINE（実機の FM 入力と同じ平滑化） |
-| STRUM ジャック | STRUM: AUTO = 空き / MIDI = トリガー入力 / OFF = 何も来ない |
-| 内蔵エキサイター | IN を挿すと実機では使われない。EXCITE で ON にできる |
-| ODD / EVEN ジャック | ROUTE と WIDTH |
-| モデルボタン・隠し操作 | MODEL と POLY |
+| IN jack | Move's audio (the average of L + R), IN GN, clipping at full scale |
+| V/OCT (empty) | Left empty. The pitch is set by FREQ (C0–C7) alone |
+| FREQUENCY knob | FREQ (semitone steps; changes glide over about 50 ms, like the hardware's pot) |
+| FM input | FINE (with the same smoothing as the hardware's FM input) |
+| STRUM jack | STRUM: AUTO = empty / MIDI = trigger input / OFF = nothing arrives |
+| Internal exciter | On the hardware it is not used once IN is plugged; EXCITE can turn it ON |
+| ODD / EVEN jacks | ROUTE and WIDTH |
+| Model buttons, hidden gestures | MODEL and POLY |
 
-STRUCTURE / BRIGHTNESS / DAMPING / POSITION の 4 つは、実機のポットと同じ
-係数でなめらかに動きます。MODEL や POLY を変えたときは、4 ms で消えて切り替え、
-4 ms で戻すので、クリックは出ません。
-
----
-
-## 設定の保存
-
-全パラメーターは `state` として保存され、Schwung のスロット保存・
-My Presets で保存／復元できます。
+STRUCTURE / BRIGHTNESS / DAMPING / POSITION move smoothly with the same coefficients as
+the hardware's pots. Changing MODEL or POLY fades out over 4 ms, switches, and comes back
+over 4 ms, so there are no clicks.
 
 ---
 
-## リアルタイム安全性と負荷
+## Saved settings
 
-- 処理中にメモリ確保、ロック、ファイル入出力、ログ出力はしません。
-  インスタンスは静的なプール（8 個）から取ります。
-- 負荷の高いモデルに勝手に切り替えたり、モデルを差し替えたりはしません。
-- NaN / 無限大が出た場合は共鳴体を初期化して無音から再開します
-  （テストでは一度も発生していません）。
-
-- 1 インスタンスのメモリ: 約 243 KB（リバーブ用メモリ 128 KB を含む）。
-  プールは 8 個ぶん（約 1.9 MB）を静的に持ち、使うのは作成したインスタンスの分だけです。
-- **CPU 負荷（Move 実機で計測、2026-10-28）**: ドラムループ入力で、全 12 モード ×
-  1/2/4 ボイス × エキサイター OFF/ON を 10 秒ずつ測りました。1 ブロック（128 サンプル、
-  2902 µs）あたりの平均は 133〜308 µs、最も重いのは KVERB・4 ボイス・エキサイター ON の
-  308 µs（**10.6 %**）です。軽いのは 1 ボイスの STRNG / FM（約 5 %）です。
-  `scripts/build_bench.sh` でベンチを作り、
-  `BENCH=fx scripts/bench_move.sh ableton@<Move の IP> -i <鍵>` で測れます。
+Every parameter is saved as `state`, and can be saved/restored with Schwung's slot saving
+and My Presets.
 
 ---
 
-## 検証（`scripts/test.sh`）
+## Realtime safety and load
 
-- **ラッパーが何も足していないこと**: Rings 部分の出力が、公式 DSP を `rings.cc`
-  と同じ配線（ノイズゲート → Strummer → Part / StringSynthPart）で手で駆動した
-  出力と、ドラムループ入力で**ビット一致**:
-  IN＋オンセット検出（6 モデル × 1/2/4 ボイス）、IN＋STRUM トリガー（12 モード ×
-  1/2/4 ボイス）、オンセット検出＋内蔵エキサイター（6 モデル × 1/2/4 ボイス）。
-- 遅延: Wet 経路がどの位相でも 72 サンプル（Dry との差 0.05 サンプル以内）、
-  1 時間ぶんの処理（ブロック長 1〜128 すべて）でバッファ不足 0 回。
-- MIX 0 % = 入力とビット一致（全モデル、フルスケールのノイズ）、MIX 100 % に
-  Dry が混ざらないこと、50 % が等パワー（+3.01 dB）、MIX を一気に動かしても
-  なめらかなこと。
-- 全モデルがドラムで鳴り、入力が止まっても共鳴が続くこと。エキサイター OFF では
-  無音の入力にストラムしても出力が完全に 0、ON では弦が鳴ること、
-  無音入力では全モデルで出力が完全に 0。
-- オンセット検出: キック風・スネア風・ハイハット風の連打とドラムループで、
-  立ち上がり 1 秒以降の全打を検出（取りこぼし 0、1 打あたり最大 2 回）、
-  一定のノイズや持続音では反応しないこと、20 ms 間隔の連打で暴走しないこと、
-  SENS で小さな打音（-40 dBFS）を拾えること、MIDI では 1 ノート 1 ストラム。
-- FREQ（C1〜C5 で 5 セント以内）、FINE、DAMP（減衰時間）、BRIGHT（スペクトル重心）、
-  STRUCT、POS、和音、ODD/EVEN・WIDTH・ROUTE、LEVEL、IN GN。
-- フルスケールのキック＋IN GN +24 dB・DAMP 最大・LEVEL +12 dB・C0 で全モデル ×
-  ボイス数が有限・クリップ保護内、連続キックでエネルギーが溜まらないこと、
-  19 kHz を通してもその下の折り返し（エイリアス）が -60 dB 以下、
-  ドラムを流しながらのモデル切り替え、状態の保存と復元、
-  10 分間のランダム操作（全モデル）。ASan / UBSan 付き。
-- プラグインとして dlopen したスモークテスト（全モデル、MIX 0 の一致、
-  状態の保存、8 インスタンス同時、インスタンスどうしが独立していること）。
-- Schwung 本体のページエンジン（実機からコピーした `shared/`）で、全 12 モデルの
-  ノブの並び（ノブ 1 が常に MIX）、「--」が同じ場所に出ること、ノブ操作を確認。
+- No memory allocation, locking, file I/O or logging during processing. Instances are
+  taken from a static pool (of 8).
+- It never switches by itself to a heavier model, nor swaps models.
+- If NaN / infinity appears, the resonator is re-initialised and restarts from silence
+  (it never happened in tests).
+
+- Memory per instance: about 243 KB (including 128 KB of reverb memory). The pool holds
+  8 statically (about 1.9 MB), and only created instances are used.
+- **CPU load (measured on a real Move, 2026-10-28)**: with a drum-loop input, all 12 modes
+  × 1/2/4 voices × exciter OFF/ON were measured for 10 s each. The mean per block (128
+  samples, 2902 µs) is 133–308 µs; the heaviest is KVERB with 4 voices and the exciter ON
+  at 308 µs (**10.6 %**). The lightest are STRNG / FM with 1 voice (about 5 %). Build the
+  bench with `scripts/build_bench.sh` and measure with
+  `BENCH=fx scripts/bench_move.sh ableton@<Move's IP>`.
 
 ---
 
-## ビルドとインストール
+## Verification (`scripts/test.sh`)
 
-このリポジトリは、Sound Generator 版（`orings`）と、この Audio FX 版
-（`orings-fx`）の 2 つのモジュールを、**同じ 1 つの Rings DSP**（`src/rings/mi/`）
-から作ります。
+- **The wrapper adds nothing**: the output of the Rings part is **bit-identical**, with a
+  drum-loop input, to the official DSP driven by hand with the same wiring as `rings.cc`
+  (noise gate → Strummer → Part / StringSynthPart): IN + onset detection (6 models × 1/2/4
+  voices), IN + STRUM trigger (12 modes × 1/2/4 voices), onset detection + internal
+  exciter (6 models × 1/2/4 voices).
+- Latency: the wet path is 72 samples at every phase (within 0.05 sample of the dry), and
+  an hour's worth of processing (every block length 1–128) has 0 buffer shortages.
+- MIX 0 % = bit-identical to the input (every model, full-scale noise), no dry mixed into
+  MIX 100 %, 50 % being equal power (+3.01 dB), and MIX staying smooth when moved all at once.
+- Every model sounds with drums, and the resonance continues after the input stops. With
+  the exciter OFF the output is exactly 0 even when strummed with silent input; with it ON
+  the strings sound; and with silent input every model outputs exactly 0.
+- Onset detection: with kick-, snare- and hi-hat-like hits and a drum loop, every hit after
+  the first second is detected (0 missed, at most 2 per hit), no reaction to steady noise or
+  sustained sounds, no runaway with hits 20 ms apart, SENS picking up quiet hits (-40 dBFS),
+  one strum per note in MIDI.
+- FREQ (within 5 cents over C1–C5), FINE, DAMP (decay time), BRIGHT (spectral centroid),
+  STRUCT, POS, chords, ODD/EVEN, WIDTH, ROUTE, LEVEL, IN GN.
+- A full-scale kick + IN GN +24 dB, DAMP at maximum, LEVEL +12 dB and C0 staying finite
+  and within the clip protection for every model × voice count; no energy building up with
+  continuous kicks; aliasing below 19 kHz at -60 dB or lower when passing 19 kHz; model
+  switching while drums play; saving and restoring state; 10 minutes of random operation
+  (every model). With ASan / UBSan.
+- A smoke test dlopening it as a plugin (every model, MIX 0 matching, saving state, 8
+  instances at once, instances independent of each other).
+- With Schwung's own page engine (`shared/` copied from the device): the knob order for
+  all 12 models (knob 1 always MIX), "--" appearing in the same place, and knob operation.
+
+---
+
+## Building and installing
+
+From **one and the same Rings DSP** (`src/rings/mi/`), this repository builds two modules:
+the Sound Generator version (`orings`) and this Audio FX version (`orings-fx`).
 
 ```bash
 scripts/build.sh arm64
@@ -308,26 +310,25 @@ scripts/test.sh
 python3 scripts/install.py http://move.local:7700 --module orings-fx
 ```
 
-`build.sh arm64` で `dist/orings-fx-module.tar.gz` ができます。インストール後は
-Move を再起動してください。
+`build.sh arm64` produces `dist/orings-fx-module.tar.gz`. Restart Move after installing.
 
-| ファイル | 内容 |
+| File | Contents |
 |---|---|
-| `src/fx/orings_fx.{h,cpp}` | この FX 本体（Rings の周りの配線、MIX、出力段） |
-| `src/fx/upsampler.h` | 44.1→48 kHz（ポリフェーズ FIR、32 タップ × 160 位相） |
-| `src/rings/resampler.h` | 48→44.1 kHz（64 タップ） |
-| `src/common/rings_models.h` | MODEL と Rings のモデルの対応、和音のヒステリシス |
-| `src/fx_plugin.cpp` | Schwung の Audio FX API v2 との接続 |
-| `scripts/fx_metadata.py` | パラメーターの定義（`fx/module.json` もここから生成） |
-| `tests/test_fx.cpp`, `tests/smoke_fx.py`, `tests/test_grid_fx.mjs` | テスト |
+| `src/fx/orings_fx.{h,cpp}` | The FX itself (the wiring around Rings, MIX, the output stage) |
+| `src/fx/upsampler.h` | 44.1→48 kHz (polyphase FIR, 32 taps × 160 phases) |
+| `src/rings/resampler.h` | 48→44.1 kHz (64 taps) |
+| `src/common/rings_models.h` | Mapping between MODEL and Rings' models, chord hysteresis |
+| `src/fx_plugin.cpp` | Connection to Schwung's Audio FX API v2 |
+| `scripts/fx_metadata.py` | Parameter definitions (`fx/module.json` is generated from it too) |
+| `tests/test_fx.cpp`, `tests/smoke_fx.py`, `tests/test_grid_fx.mjs` | Tests |
 
 ---
 
-## ライセンス
+## Licence
 
-このモジュールのコードは MIT ライセンスです（`LICENSE`、著作権者 Hiro Ikezawa）。
-同梱の Rings DSP と stmlib は Emilie Gillet 氏の MIT ライセンスのコードで、
-各ファイルの著作権表示をそのまま残しています（`THIRD_PARTY_LICENSES.md`）。
+This module's code is under the MIT licence (`LICENSE`, copyright holder Hiro Ikezawa).
+The bundled Rings DSP and stmlib are Emilie Gillet's MIT-licensed code, and each file
+keeps its copyright notice (`THIRD_PARTY_LICENSES.md`).
 
-Mutable Instruments は登録商標です。このモジュールは Mutable Instruments とは
-無関係の非公式移植で、名前はコードの出典を示すためだけに使っています。
+Mutable Instruments is a registered trademark. This module is an unofficial port with no
+connection to Mutable Instruments, and the name is used only to show where the code came from.

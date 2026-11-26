@@ -77,11 +77,11 @@ cp "$MODULE/fx/module.json" "$OUT_FX/"
 if [[ "${1:-arm64}" == arm64 ]]; then
   python3 "$MODULE/scripts/check_abi.py" "$OUT/dsp.so" move_plugin_init_v2
   python3 "$MODULE/scripts/check_abi.py" "$OUT_FX/orings-fx.so" move_audio_fx_init_v2
-  for f in ui_chain.js ui_core.mjs ui_params.mjs help.json README.md LICENSE THIRD_PARTY_LICENSES.md; do
+  for f in ui_chain.js ui_core.mjs ui_params.mjs help.json README.md README.ja.md LICENSE THIRD_PARTY_LICENSES.md; do
     cp "$MODULE/$f" "$OUT/"
   done
   for f in LICENSE THIRD_PARTY_LICENSES.md; do cp "$MODULE/$f" "$OUT_FX/"; done
-  for f in help.json README.md; do cp "$MODULE/fx/$f" "$OUT_FX/"; done
+  for f in help.json README.md README.ja.md; do cp "$MODULE/fx/$f" "$OUT_FX/"; done
   tar -czf "$MODULE/dist/orings-module.tar.gz" -C "$MODULE/dist" orings
   tar -czf "$MODULE/dist/orings-fx-module.tar.gz" -C "$MODULE/dist" orings-fx
 fi

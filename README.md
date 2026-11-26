@@ -1,504 +1,527 @@
 # oRings
 
-（モジュール ID: `orings`。「oRings」は開発用の仮の名前です）
+**English** | [日本語](README.ja.md)
 
-Schwung / Ableton Move 用の Sound Generator です。中身は Mutable Instruments の
-ユーロラック・モジュール **Rings**（レゾネーター）の**非公式移植**で、
-Emilie Gillet 氏が MIT ライセンスで公開している公式ファームウェアの DSP ソースコードを
-そのまま同梱して動かしています。共鳴体を新しく作り直したり、簡略化したりはしていません。
+(Module ID: `orings`. "oRings" is a provisional development name.)
 
-- Rings の 3 つの標準モデル（Modal Resonator / Sympathetic Strings /
-  Modulated・Inharmonic String）と、公式の隠しモード 4 種
-  （**2-op FM**、**Western Chords**、**Karplusverb**、
-  **Disastrous Peace** ＝ オルガン／ストリングマシン、エフェクト 6 種類）を、
-  MODEL ノブで直接選べます。隠し操作は要りません。
-- 音を作る部分（`rings::Part`、`rings::StringSynthPart`、`rings::Strummer`）は、
-  実機のファームウェア `rings.cc` と**同じ呼び出し方・同じ順番**で動かしています。
-  移植で置き換えたのは、ポット・CV／トリガー入力・出力ジャックといった
-  **ハードウェアの部分だけ**です。
-- 実機と同じ **48 kHz・24 サンプルブロック**で DSP を動かし、Move の 44.1 kHz に
-  リサンプルします。
-- テストで、このモジュールの出力が、公式 DSP を実機と同じ配線で直接駆動したときの
-  出力と **1 サンプル単位で完全一致**することを、全 12 モード × 1〜4 ボイスで
-  確認しています（「検証」）。
-- 演奏用の機能: Move の再生に合わせて **16 分音符ごとに自動で打撃**し、
-  16 個のパッドで打つステップを ON/OFF、ノブに触れながら回して**動きを記録**（REC）、
-  **RANDOM** パッドでメロディを自動生成、スケール上の音を選ぶ **PITCH** ノブ、
-  8 つの**プリセットパッド**があります（「使い方」）。MIDI ノートでもこれまでどおり弾けます。
+A Sound Generator for Schwung / Ableton Move. It is an **unofficial port** of
+Mutable Instruments' Eurorack module **Rings** (a resonator): the DSP source code
+of the official firmware, published by Emilie Gillet under the MIT licence, is
+bundled and run as-is. The resonators have not been rebuilt or simplified.
+
+- Rings' 3 standard models (Modal Resonator / Sympathetic Strings /
+  Modulated/Inharmonic String) and the 4 official hidden modes
+  (**2-op FM**, **Western Chords**, **Karplusverb**, and
+  **Disastrous Peace** = an organ / string machine with 6 effects) can be chosen
+  directly with the MODEL knob. No hidden gestures are needed.
+- The sound-producing parts (`rings::Part`, `rings::StringSynthPart`,
+  `rings::Strummer`) are run **with the same calls in the same order** as the
+  hardware firmware's `rings.cc`. The port replaces **only the hardware**: pots,
+  CV/trigger inputs and output jacks.
+- The DSP runs at the hardware's **48 kHz in 24-sample blocks** and is resampled
+  to Move's 44.1 kHz.
+- Tests confirm that this module's output is **identical sample for sample** to
+  the official DSP driven directly with the same wiring as the hardware, across
+  all 12 modes × 1–4 voices (see "Verification").
+- Performance features: it **strikes automatically on every 1/16** in time with
+  Move's playback, 16 pads switch the struck steps ON/OFF, touching and turning a
+  knob **records its movement** (REC), the **RANDOM** pad generates melodies, the
+  **PITCH** knob chooses notes on a scale, and there are 8 **preset pads** (see
+  "Getting started"). It still plays from MIDI notes as before.
 
 | | |
 |---|---|
-| 残したもの | 全モデルの共鳴体（モーダル 64 モード、弦 8 本、FM ボイス、ストリングシンセ 12 ボイス）、内蔵エキサイター（モデルごとのパルス／ノイズバースト）、STRUM 処理、ボイス割り当て（ラウンドロビン、3 ボイス時のピンポン）、ODD / EVEN の 2 出力、リミッター、リバーブ／コーラス／アンサンブル／フォルマント |
-| 省いたもの | 外部オーディオ入力（IN ジャック）と自動ストラム検出、各ノブの CV 入力とアッテヌバーター、キャリブレーション、LED とボタン操作 |
-| 加えたもの | MIDI 演奏（ノート = V/OCT ＋ STRUM）、ベロシティによる打撃の強さ、ピッチベンド、微調整、和音を 1 音ずつ鳴らす間隔、出力の振り分け、音量。トランスポート同期の自動打撃（16 ステップのパッド）、ノブの動きの記録、RANDOM、スケール PITCH、プリセットパッド |
+| Kept | The resonators of every model (modal with 64 modes, 8 strings, the FM voice, the string synth's 12 voices), the internal exciter (per-model pulse/noise burst), STRUM processing, voice allocation (round robin, ping-pong with 3 voices), the two outputs ODD / EVEN, the limiter, reverb/chorus/ensemble/formant |
+| Left out | The external audio input (IN jack) and automatic strum detection, the CV inputs and attenuverters of each knob, calibration, LEDs and buttons |
+| Added | MIDI playing (note = V/OCT + STRUM), strike strength from velocity, pitch bend, fine tuning, the spacing for strumming a chord one note at a time, output routing, volume. Transport-synced automatic strikes (16 step pads), knob movement recording, RANDOM, scale PITCH, preset pads |
 
 ---
 
-## 使い方（はじめての操作）
+## Getting started
 
-基本の流れは「スロットに入れる → 再生する → ノブで音を作る → パッドでパターンを作る
-→ REC でノブの動きを記録する」です。
+The basic flow is: put it in a slot → play → shape the sound with the knobs →
+build a pattern on the pads → record knob movements with REC.
 
-### 1. 音を出す
+### 1. Make a sound
 
-1. Schwung の画面（Shift+Vol+Track、またはトラックボタン長押し）でスロットを開き、
-   Synth に **oRings** を選びます。
-2. スロットの Synth（oRings）を開くと、oRings の画面になります。
-3. Move の **Play** を押します。oRings は**トランスポートに合わせて 16 分音符ごとに
-   自動で共鳴体を打ちます**（クリップや MIDI ノートは不要）。停止中は打ちません。
-   Move のトラックからの MIDI ノートでも、これまでどおり演奏できます。
+1. Open a slot in the Schwung screen (Shift+Vol+Track, or long-press a track
+   button) and choose **oRings** as the Synth.
+2. Open the slot's Synth (oRings) to get the oRings screen.
+3. Press **Play** on Move. oRings **strikes its resonator automatically on every
+   1/16 in time with the transport** (no clip or MIDI notes needed). It does not
+   strike while stopped. It also plays from MIDI notes on a Move track, as before.
 
-**Rings には ADSR がありません。** 打たれた音は、余韻の長さ DAMPING
-（とモデル自身の物理）で自然に減衰します。ノートを離しても止まりません。
-これは実機と同じ振る舞いです。
+**Rings has no ADSR.** A struck sound decays naturally with the length of the tail,
+DAMPING (and the model's own physics). Releasing a note does not stop it. This is
+how the hardware behaves too.
 
-### 2. 音色を作る（メインページ）
+### 2. Shape the sound (main page)
 
-| ノブ 1 | ノブ 2 | ノブ 3 | ノブ 4 |
+| Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|
 | VOLUME | STRUCT | BRIGHT | DAMP |
-| **ノブ 5** | **ノブ 6** | **ノブ 7** | **ノブ 8** |
-| POS | POLY（1〜4 ボイス） | MODEL（12 種） | PITCH |
+| **Knob 5** | **Knob 6** | **Knob 7** | **Knob 8** |
+| POS | POLY (1–4 voices) | MODEL (12) | PITCH |
 
-- **MODEL** で共鳴体の種類を選びます。ノブ 2〜5 の名前は、モデルに合わせて
-  変わります（例: FM では RATIO / INDEX / DECAY / FDBK。下の表）。
-- **DAMP** で余韻の長さ、**BRIGHT** で音の明るさ、**STRUCT** で倍音の構造、
-  **POS** で打つ位置が変わります。
-- **PITCH** は自動打撃の音程で、スケール上の音を選びます（スケールは Scale ページ）。
-- **よく使うモデルだけに絞る**: MODELS パッド（RANDOM の左隣）で一覧を開き、
-  使うモデルだけを ON にできます（下の「使うモデルを選ぶ（MODELS 一覧）」）。
-- **ジョグを回す**と Rings（移調・打撃・出力の設定）→ Scale（ROOT・SCALE・STEPS・RESET・CHORD）
-  → My Presets（プリセット）→ Module のページに移ります。
+- **MODEL** chooses the kind of resonator. The names of knobs 2–5 change to match
+  the model (e.g. RATIO / INDEX / DECAY / FDBK in FM; see the table below).
+- **DAMP** changes the length of the tail, **BRIGHT** the brightness, **STRUCT** the
+  harmonic structure and **POS** where it is struck.
+- **PITCH** is the pitch of the automatic strikes, chosen from the notes of a scale
+  (set on the Scale page).
+- **Narrow down to the models you use**: the MODELS pad (left of RANDOM) opens a
+  list where you switch on only the models you want (see "Choosing models (MODELS
+  list)" below).
+- **Turn the jog wheel** to move to the Rings page (transpose, strike and output
+  settings) → Scale (ROOT, SCALE, STEPS, RESET, CHORD) → My Presets (presets) →
+  Module.
 
-### 3. パターンを作る（パッド）
+### 3. Build a pattern (pads)
 
-画面を開いている間、パッドは oRings 専用になります（Move 純正には届きません）。
+While the screen is open the pads belong to oRings (they do not reach Move).
 
 ```
-                          MODELS RANDOM  REC   ← 一番上の段の右 3 つ
- P1  P2  P3  P4  P5  P6  P7  P8                ← 上から 2 段目（プリセット）
-  9  10  11  12  13  14  15  16                ← 下から 2 段目
-  1   2   3   4   5   6   7   8                ← 一番下の段
+                          MODELS RANDOM  REC   ← right three of the top row
+ P1  P2  P3  P4  P5  P6  P7  P8                ← second row from the top (presets)
+  9  10  11  12  13  14  15  16                ← second row from the bottom
+  1   2   3   4   5   6   7   8                ← bottom row
 ```
 
-- **下 2 段**を押すと、そのステップで打つかどうかを ON（明るい）/ OFF（暗い）で
-  切り替えます。白く光っているのが今のステップ。8 ステップのときは下から 2 段目は
-  消灯です（16 ステップは Scale ページの STEPS で）。
-- **RANDOM** を押すと、新しいメロディが PITCH に書き込まれます（下の「RANDOM」）。
-- **MODELS** を押すと、MODEL ノブで選べるモデルの ON/OFF 一覧が開きます。
-- **上から 2 段目**の 8 個はプリセットです（下の「5. プリセットに保存する・呼び出す」）。
+- Press a pad in the **bottom two rows** to switch whether that step is struck, ON
+  (bright) / OFF (dim). The white one is the current step. With 8 steps the second
+  row from the bottom is dark (16 steps: STEPS on the Scale page).
+- **RANDOM** writes a new melody into PITCH (see "RANDOM" below).
+- **MODELS** opens the ON/OFF list of the models the MODEL knob can choose.
+- The 8 pads of the **second row from the top** are presets (see "5. Saving and
+  recalling presets" below).
 
-### 4. ノブの動きを記録する（REC）
+### 4. Record knob movements (REC)
 
-1. **REC**（一番右上のパッド）を押して ON にします（真っ赤に光る。OFF は薄い赤）。
-2. Move を再生した状態で、記録したいノブに**触れたまま回します**。
-   触れている間だけ、ループの各ステップにその値が記録されます。指を離すと記録終了。
-3. 記録されたノブは、以後ループのたびにその動きを再生します。
-   ノブの値自体は書き換わらず、記録を消すと元の値に戻ります。
-4. 消すとき: **Shift を押しながらノブに触れる**とそのノブの記録を消去。
-   **Shift + ノブ 1（VOLUME）に触れる**と全部消去。
-5. 記録が終わったら REC をもう一度押して OFF にすると、うっかり触っても記録されません。
+1. Press **REC** (the top-right pad) to switch it ON (solid red; OFF is pale red).
+2. With Move playing, **touch and turn** the knob you want to record. While you
+   touch it, its value is recorded into each step of the loop. Let go to stop.
+3. A recorded knob replays its movement on every pass of the loop from then on. The
+   knob's own value is not overwritten; clearing the recording returns to it.
+4. To clear: **hold Shift and touch a knob** to clear that knob's recording.
+   **Shift + touch knob 1 (VOLUME)** clears everything.
+5. When you are done, press REC again to switch it OFF so that a stray touch records
+   nothing.
 
-記録できるのはノブ 2〜5（名前が変わっても同じ 4 つの値: STRUCTURE・BRIGHTNESS・
-DAMPING・POSITION）、PITCH、Rings ページの EXCITE（打撃の強さ。ステップごとの
-アクセントになります）です。VOLUME・POLY・MODEL とその他の設定は記録しません。
+Recordable: knobs 2–5 (the same four values whatever their names: STRUCTURE,
+BRIGHTNESS, DAMPING, POSITION), PITCH, and EXCITE on the Rings page (strike strength,
+which becomes a per-step accent). VOLUME, POLY, MODEL and the other settings are not
+recorded.
 
-### 5. プリセットに保存する・呼び出す
+### 5. Saving and recalling presets
 
-**パッドで（すばやく 8 つ）:** 上から 2 段目の 8 個のパッドがプリセット 1〜8 です。
+**On the pads (eight, quickly):** the 8 pads of the second row from the top are
+presets 1–8.
 
-- **保存**: Shift を押しながらパッドをタップ。今の状態をまるごと覚えます。
-- **呼び出し**: パッドをタップ。再生中でもすぐに切り替わります（MODEL も切り替わります）。
-- 色: 消灯 = 空き、薄い黄色 = 保存済み、白 = 最後に呼び出した（保存した）もの。
-  空きのパッドをタップすると画面に `EMPTY` と出るだけで、何も変わりません。
-- 覚えるのは、MODEL を含むすべてのノブの値・記録したノブの動き・RANDOM で作った
-  メロディ・ステップの ON/OFF・ROOT / SCALE / STEPS です（REC の ON/OFF と MODELS
-  一覧は含みません）。
-- 8 つのプリセットはセットとは関係なく `/data/UserData/schwung/orings/presets.json` に
-  保存され、どのセット・どのスロットの oRings からでも同じ 8 つが使えます。
-  他のモジュールのプリセットとは別のファイルです。再インストールしても消えません。
+- **Save**: hold Shift and tap a pad. It stores the whole current state.
+- **Recall**: tap a pad. It switches at once, even while playing (MODEL switches too).
+- Colours: dark = empty, pale yellow = saved, white = the last one recalled (or
+  saved). Tapping an empty pad only shows `EMPTY` on screen and changes nothing.
+- Stored: every knob value including MODEL, recorded knob movements, the melody made
+  by RANDOM, the step ON/OFF pattern, ROOT / SCALE / STEPS (not the REC state or the
+  MODELS list).
+- The eight presets are independent of the set and are saved to
+  `/data/UserData/schwung/orings/presets.json`, so the same eight are available from
+  oRings in any set and any slot. The file is separate from other modules' presets.
+  Reinstalling keeps it.
 
-**名前を付けて（数の制限なし）:** ジョグを回して最後のほうのページ **My Presets** に行きます。
-Save As（名前を付けて保存）、Preset（一覧から読み込み）、Save（上書き）、Delete（削除）が
-使えます。Schwung 共通のプリセット機能で、`/data/UserData/schwung/presets/orings/` に
-保存されます。
+**With a name (no limit on how many):** turn the jog wheel to the **My Presets** page
+near the end. Save As (save under a name), Preset (load from the list), Save
+(overwrite) and Delete are available. This is Schwung's common preset feature, saved
+in `/data/UserData/schwung/presets/orings/`.
 
-### 6. 終わるとき
+### 6. When you are done
 
-**Back** で画面を閉じます。パッドは Move に戻ります。音色・記録・ステップの ON/OFF は
-セット（スロットのオートセーブ）やプリセットに保存されます。
+Close the screen with **Back**. The pads return to Move. The sound, recordings and
+step pattern are kept in the set (the slot autosave) and in presets.
 
 ---
 
-## 操作方法（詳細）
+## Controls (detail)
 
-画面とノブは Schwung 標準のノブ画面（8 つのノブがページごとに並ぶ形）と同じ見た目・操作で、
-それにノブへのタッチ（記録用）とパッドの操作を加えています。
+The screen and knobs look and work like Schwung's standard knob screen (eight knobs
+per page), with knob touch (for recording) and the pads added.
 
-| 操作 | 動作 |
+| Control | Action |
 |---|---|
-| ノブ 1–8 | 現在ページのパラメーター（下のページ表） |
-| ノブにタッチ（REC ON・再生中） | そのノブの動きを**モーション記録** |
-| Shift + ノブにタッチ | そのノブの記録を消す。VOLUME（ノブ 1）なら**全部**消す |
-| ジョグ回転 / クリック | ページ切替・項目選択（Schwung 標準グリッドと同じ） |
-| Back | 画面を閉じる（パッドは Move に戻る） |
+| Knobs 1–8 | Parameters of the current page (page table below) |
+| Touch a knob (REC ON, playing) | **Motion-record** that knob |
+| Shift + touch a knob | Clear that knob's recording; on VOLUME (knob 1), clear **all** |
+| Jog turn / click | Change page, select an item (same as Schwung's standard grid) |
+| Back | Close the screen (pads return to Move) |
 
-| ページ | ノブ 1–8 |
+| Page | Knobs 1–8 |
 |---|---|
-| メイン | VOLUME・STRUCT・BRIGHT・DAMP・POS・POLY・MODEL・PITCH（2〜5 はモデルで名前が変わる） |
-| Rings | FREQ・FINE・EXCITE・SPREAD・VELO・BEND・OUTPUT・GAIN |
-| Scale | ROOT・SCALE・STEPS・RESET・CHORD（和音を使うモデルのみ） |
-| My Presets | プリセットの呼び出し・保存・削除（Schwung 共通） |
-| Module | モジュールの入れ替え・ヘルプ（Schwung 共通） |
+| Main | VOLUME, STRUCT, BRIGHT, DAMP, POS, POLY, MODEL, PITCH (2–5 change name with the model) |
+| Rings | FREQ, FINE, EXCITE, SPREAD, VELO, BEND, OUTPUT, GAIN |
+| Scale | ROOT, SCALE, STEPS, RESET, CHORD (only for models that use chords) |
+| My Presets | Load, save, delete presets (Schwung common) |
+| Module | Swap the module, help (Schwung common) |
 
-ヘッダーには今のモデル名、ループの位置、REC ON 中は `ARM`、記録中は `REC` が出ます。
-PITCH に触れている間は音名（例 `PITCH Eb3`）。記録のあるノブは Schwung の
-「モジュレーション中」の表示（再生中の値が動く）になります。
+The header shows the current model, the loop position, `ARM` while REC is ON and
+`REC` while recording. While PITCH is touched it shows the note name (e.g.
+`PITCH Eb3`). A knob with a recording shows Schwung's "modulated" display (the
+playing value moves).
 
-ステップ式のノブ（MODEL・POLY・PITCH・FREQ など）は加速せず、数ディテントで 1 段ずつ
-進みます。連続値のノブ（STRUCT など）は速く回すと加速します（Schwung 標準のノブと同じ）。
+Stepped knobs (MODEL, POLY, PITCH, FREQ etc.) do not accelerate; they advance one
+step every few detents. Continuous knobs (STRUCT etc.) accelerate when turned fast
+(like Schwung's standard knobs).
 
-## パッド
+## Pads
 
-**この画面を開いている間、パッドは oRings が占有します**（`host_pad_block`）。
-Move 純正の音源・シーケンサーにはパッド操作が届きません。画面を閉じるとパッドは
-Move に戻り、色も元に戻ります（Schwung の仕様で、占有できるのは画面表示中だけ）。
+**While this screen is open, oRings owns the pads** (`host_pad_block`). Pad presses
+do not reach Move's own instruments or sequencer. Close the screen and the pads
+return to Move with their colours (Schwung only lets a module own them while its
+screen is shown).
 
-| パッド | 動作 |
+| Pad | Action |
 |---|---|
-| **REC**（右上） | モーション記録の ON/OFF。**ON = 真っ赤、OFF = 薄い赤** |
-| **RANDOM**（その左隣） | 新しいメロディを作り、PITCH の各ステップに書き込む |
-| MODELS（さらに左） | MODELS 一覧（使うモデルの設定）を開く／閉じる |
-| 上から 2 段目（8 個） | プリセット 1–8。タップで呼び出し、Shift + タップで保存 |
-| 下 2 段（16 個） | 各ステップの打撃 ON/OFF。ON = 明るい、OFF = 暗い、今のステップ = 白。8 ステップ時は上の段（9–16）は消灯 |
+| **REC** (top right) | Motion recording ON/OFF. **ON = solid red, OFF = pale red** |
+| **RANDOM** (left of it) | Make a new melody and write it into each step of PITCH |
+| MODELS (further left) | Open / close the MODELS list (models in use) |
+| Second row from the top (8) | Presets 1–8. Tap to recall, Shift + tap to save |
+| Bottom two rows (16) | Strike ON/OFF per step. ON = bright, OFF = dim, current step = white. With 8 steps the upper row (9–16) is dark |
 
-- **Move のトランスポートに同期して、16 分音符ごとに自動で打撃**します
-  （Play で開始、停止中は打ちません。ステップの頭は小節頭にそろいます）。
-  各ステップの頭で Rings の STRUM に打撃が入り（強さはベロシティ 100 相当 × EXCITE）、
-  音程は PITCH の音です。OFF のステップでは打たず、前の音がそのまま減衰していきます。
-- ループの長さは Scale ページの **STEPS**（8 / 16、既定 8）。
-- 自動打撃は SPREAD の影響を受けません（SPREAD は MIDI で弾いた和音用）。
-- Move のトラックから来る MIDI ノート（クリップや、画面を閉じているときのパッド）も
-  oRings を鳴らします。自動打撃と MIDI は同時に使えます。
+- It **strikes automatically on every 1/16, synced to Move's transport** (starts
+  with Play, no strikes while stopped; steps line up with the bar). At the start of
+  each step a strike goes into Rings' STRUM (strength equivalent to velocity 100 ×
+  EXCITE), at PITCH's note. OFF steps are not struck, and the previous sound keeps
+  decaying.
+- The loop length is **STEPS** on the Scale page (8 / 16, default 8).
+- Automatic strikes are not affected by SPREAD (SPREAD is for chords played over MIDI).
+- MIDI notes from the Move track (clips, or the pads while the screen is closed) also
+  play oRings. Automatic strikes and MIDI can be used together.
 
-### モーション記録
+### Motion recording
 
-- REC を ON にして Move を再生し、**ノブに触れている間**、そのノブの動きが
-  ループに記録されます（16 分音符 1 つにつき 8 点、12 ビット）。指を離すと終了。
-- 連続値のノブは点と点の間をなめらかにつなぎ、PITCH は点の値をそのまま保ちます。
-- 記録した値も、実機のポットと同じなめらかさ（約 50 ms のローパス）で共鳴体に届きます。
-- 再生はノブの値を書き換えません（記録が優先されるだけ）。Shift + タッチで消すと
-  ノブの値に戻ります。
-- 停止中は記録も再生もせず、ノブの値で鳴ります。
-- モデルで名前が変わるノブ（RATIO・CHORD・VOWEL など）に触れても、記録されるのは
-  中の値（STRUCTURE など）です。モデルを変えても記録はそのまま残ります。
+- With REC ON and Move playing, a knob's movement is recorded into the loop **while
+  you touch it** (8 points per 1/16, 12-bit). Let go to stop.
+- Continuous knobs are interpolated smoothly between points; PITCH holds each point's
+  value.
+- Recorded values reach the resonator with the same smoothness as the hardware's pots
+  (a low-pass of about 50 ms).
+- Playback does not overwrite the knob value (the recording just takes priority).
+  Clearing with Shift + touch returns to the knob value.
+- While stopped nothing is recorded or played back, and the knob values sound.
+- Touching a knob whose name changes with the model (RATIO, CHORD, VOWEL etc.) records
+  the value inside it (STRUCTURE etc.). Recordings stay as they are when the model
+  changes.
 
-### PITCH（ノブ 8）
+### PITCH (knob 8)
 
-- **PITCH は最初からスケール上の音**です。ノブ 8 は Scale ページの ROOT + SCALE の
-  音だけを C1〜C6（5 オクターブ）の範囲で選びます（後からクオンタイズするのではなく、
-  ノブ自体がスケールの音階で動きます）。既定は C フリジアンの C3。
-- ROOT / SCALE を変えると、PITCH と記録済みの PITCH は新しいスケールの最寄りの音に移ります。
-- SCALE: Phrygian（既定）・Minor・Dorian・Major・Mixolyd・Lydian・Locrian・HarmMin・
-  PhrygDom・MinPent・In・Chromatic。
-- PITCH は自動打撃の音程です。MIDI ノートで弾くときは、そのノートの音程で鳴ります。
-  どちらも Rings ページの FREQ・FINE で全体が移調されます。
+- **PITCH is a scale note from the start.** Knob 8 chooses only the notes of the Scale
+  page's ROOT + SCALE, over C1–C6 (five octaves). It is not quantised afterwards; the
+  knob itself moves through the scale. Default: C3 in C Phrygian.
+- Changing ROOT / SCALE moves PITCH and the recorded PITCH to the nearest note of the
+  new scale.
+- SCALE: Phrygian (default), Minor, Dorian, Major, Mixolyd, Lydian, Locrian, HarmMin,
+  PhrygDom, MinPent, In, Chromatic.
+- PITCH is the pitch of the automatic strikes. When played from MIDI notes, the note's
+  own pitch sounds. Both are transposed as a whole by FREQ and FINE on the Rings page.
 
-### RANDOM（メロディの自動生成）
+### RANDOM (melody generation)
 
-RANDOM は、**`patterns/` に入っている MIDI ファイル（元フレーズ）を元に、毎回少し
-違うメロディを作って PITCH に書き込む**ボタンです。最初は 6 つの元フレーズが入っています。
+RANDOM **makes a slightly different melody each time from the MIDI files (source
+phrases) in `patterns/` and writes it into PITCH**. Six source phrases are included.
 
-**押したときに起きること**
+**What happens when you press it**
 
-1. 元フレーズの中から 1 つをランダムに選びます（直前と同じものは選ばれにくくなっています）。
-2. その元フレーズの音の並びを「変化量 50 %」で変化させます。おおよそ半分の音が、
-   スケール上で隣の音に動く・オクターブ跳ぶ・前の音を繰り返す、などの形で変わり、
-   残りは元フレーズのままです。毎回違う結果になり、直前のメロディと同じにはなりません。
-3. 休符は作りません。元フレーズの休符の位置も音で埋め、全ステップに音程が入ります。
-4. できたメロディを PITCH の記録として、ループの各ステップに書き込みます。
-   - STEPS が 8 なら 8 ステップ、16 なら 16 ステップ（8 ステップの変化を 2 つ続けたもの）。
-   - それまでの PITCH の記録は、STEPS の分だけ上書きされます。
-   - 打つかどうかは下 2 段のパッドで決まります。RANDOM はステップの ON/OFF を変えません。
+1. One source phrase is chosen at random (the previous one is less likely).
+2. Its note sequence is varied with a "50 % amount of change": roughly half of the
+   notes change — moving to a neighbouring scale note, jumping an octave, repeating
+   the previous note and so on — and the rest stay as in the source. The result
+   differs every time and never equals the previous melody.
+3. No rests are made. Rests in the source are filled with notes, so every step has a
+   pitch.
+4. The melody is written into each step of the loop as the PITCH recording.
+   - 8 steps with STEPS at 8; 16 steps at 16 (two 8-step variations in a row).
+   - The previous PITCH recording is overwritten for the length of STEPS.
+   - Whether a step is struck is decided by the bottom two rows of pads. RANDOM does
+     not change the step ON/OFF pattern.
 
-**音域と音階**
+**Range and scale**
 
-- 書き込まれる音は、すべて Scale ページで設定したスケール（ROOT・SCALE）の音です。
-- 音域は**ノブ 8（PITCH）の音を基準に、5 度下から 1 オクターブ半上まで**（-7 〜 +17 半音、
-  C1〜C6 の中）。範囲を出る音はオクターブ単位で折り返して収めます。押す前にノブ 8 で
-  全体の高さを決めておけます。
+- Every note written is a note of the scale set on the Scale page (ROOT, SCALE).
+- The range is **from a fifth below to an octave and a half above the note of knob 8
+  (PITCH)** (-7 to +17 semitones, inside C1–C6). Notes outside it are folded back by
+  octaves. Set the overall height with knob 8 before pressing.
 
-**取り消す・作り直す**
+**Undo / redo**
 
-- もう一度押すと、別のメロディで書き直します。
-- **Shift + ノブ 8 にタッチ**で PITCH の記録を消すと、ノブ 8 の音だけに戻ります。
-- REC を ON にしてノブ 8 に触れながら回せば、一部のステップだけ手で書き換えられます。
+- Press again to rewrite with a different melody.
+- **Shift + touch knob 8** clears the PITCH recording, back to knob 8's note only.
+- With REC ON, touch and turn knob 8 to rewrite only some steps by hand.
 
-#### 元フレーズを入れ替える
+#### Replacing the source phrases
 
-元フレーズの MIDI はビルド時に `dsp.so` に埋め込まれます（Move 上でファイルを読みに
-行くことはしません）。入れ替えたら**ビルドし直して、インストールし直す**必要があります。
+The source MIDI files are embedded into `dsp.so` at build time (the Move does not
+read files for this). After replacing them you must **rebuild and reinstall**.
 
-1. 使いたい MIDI ファイル（Standard MIDI File、`.mid`）を `patterns/` に置きます。
-2. `patterns/patterns.txt` に、使うファイルを 1 行に 1 つずつ書きます（1〜16 個）。
-   行の順番が元フレーズの番号です。`#` から後はコメントです。
+1. Put the MIDI files you want (Standard MIDI File, `.mid`) in `patterns/`.
+2. List the files to use in `patterns/patterns.txt`, one per line (1–16). The line
+   order is the phrase number. Anything after `#` is a comment.
 
    ```
-   my_riff.mid          # ファイルの先頭から 8 ステップ
-   long_phrase.mid 16   # 17 ステップ目から 8 ステップ（2 列目は開始位置）
+   my_riff.mid          # 8 steps from the start of the file
+   long_phrase.mid 16   # 8 steps from step 17 (the second column is the start)
    ```
 
-   `patterns.txt` を消すと、`patterns/` の `.mid` をすべて名前順に使います。
-3. ビルドしてインストールし、Move を再起動します。
+   Without `patterns.txt`, every `.mid` in `patterns/` is used in name order.
+3. Build, install and restart Move.
 
-MIDI ファイルのどこが使われるか:
+Which part of a MIDI file is used:
 
-- 各ファイルの**開始位置から 16 分音符 8 個分**だけを使います。
-- 使うのは**音程と並び順だけ**です。ベロシティや音の長さは使いません。
-- ノートの位置は一番近い 16 分音符に寄せます。同じステップに複数の音があるときは、
-  一番強い（同じなら先の）音を 1 つだけ使います。全トラック・全チャンネルをまとめて読みます。
-- 元フレーズは、読み込むときに一度 **C フリジアン**の音に寄せてから変化させ、
-  最後に設定中の ROOT・SCALE に合わせ直します。C を主音にしたフリジアンで書くと
-  いちばん元の形が残ります。
-- 開始位置から 8 ステップの中にノートが 1 つも無いファイルは使われません。
-  ファイル名は 31 バイトまで、ノートは 1 ファイル 256 個まで読みます。
+- Only **eight 1/16 notes from the start position** of each file.
+- Only **pitch and order** are used. Velocity and note length are not.
+- Note positions snap to the nearest 1/16. When a step holds several notes, only the
+  strongest (the first, on a tie) is used. All tracks and channels are read together.
+- Source phrases are first fitted to **C Phrygian** when loaded, varied, and finally
+  fitted to the current ROOT and SCALE. Phrases written in C Phrygian keep their shape
+  best.
+- A file with no note within the 8 steps from its start position is not used. File
+  names up to 31 bytes, up to 256 notes per file.
 
-## 使うモデルを選ぶ（MODELS 一覧）
+## Choosing models (MODELS list)
 
-12 モデルのうち、MODEL ノブで選べるものを決められます。
+You can decide which of the 12 models the MODEL knob can choose.
 
-1. **MODELS パッド**（RANDOM の左隣）を押す → 一覧が開きます（右端の `<` が今鳴っているモデル）。
-2. ジョグを回してカーソル移動（端で止まります）、ジョグクリックで **ON / OFF**（■ = ON、□ = OFF）。
-3. 先頭の **ALL ON** ですべて ON、**ALL OFF** で今鳴っているモデル以外をすべて OFF。
-4. **Back** か MODELS パッドで一覧を閉じます。
+1. Press the **MODELS pad** (left of RANDOM) → the list opens (the `<` on the right
+   marks the model sounding now).
+2. Turn the jog wheel to move the cursor (it stops at the ends); click the jog to
+   switch **ON / OFF** (■ = ON, □ = OFF).
+3. **ALL ON** at the top switches all on; **ALL OFF** switches off all but the model
+   sounding now.
+4. Close the list with **Back** or the MODELS pad.
 
-- 変更はすぐ保存されます（`/data/UserData/schwung/orings/settings.json`）。
-  全スロットの oRings 共通で、再インストールでも消えません。プリセットには含まれません。
-- MODEL ノブは ON のモデルだけを順に選び、両端で止まります。
-- 最低 1 つは ON のまま残ります（「ONE MUST STAY ON」）。
-- プリセットが OFF のモデルを使っていても、そのモデルで鳴ります（一覧の設定は
-  ノブで選べる範囲だけを決めます）。
+- Changes are saved at once (`/data/UserData/schwung/orings/settings.json`). Shared by
+  oRings in every slot, kept across reinstalls, not part of presets.
+- The MODEL knob steps through only the models that are ON and stops at both ends.
+- At least one stays ON ("ONE MUST STAY ON").
+- A preset that uses a model switched OFF still plays with that model (the list only
+  limits what the knob can choose).
 
 ---
 
-## ノブ
+## Knobs
 
-### 1 ページ目（メイン）
+### Page 1 (main)
 
-| ノブ | 表示 | 内容 |
+| Knob | Display | What it does |
 |---|---|---|
-| 1 | VOLUME | 音量 |
-| 2 | STRUCT など | 倍音・音程の構造（モデルにより名前が変わる。下表） |
-| 3 | BRIGHT など | 明るさ（励振と共鳴の高域） |
-| 4 | DAMP など | 減衰時間 |
-| 5 | POS など | 打つ位置（倍音の出方） |
-| 6 | POLY | ボイス数 1 / 2 / 3 / 4 |
-| 7 | MODEL | 12 モード（下表） |
-| 8 | PITCH | 自動打撃の音程（スケール上の音、C1〜C6） |
+| 1 | VOLUME | Level |
+| 2 | STRUCT etc. | Harmonic/pitch structure (the name changes with the model; table below) |
+| 3 | BRIGHT etc. | Brightness (highs of the excitation and resonance) |
+| 4 | DAMP etc. | Decay time |
+| 5 | POS etc. | Where it is struck (how the harmonics come out) |
+| 6 | POLY | Number of voices 1 / 2 / 3 / 4 |
+| 7 | MODEL | 12 modes (table below) |
+| 8 | PITCH | Pitch of the automatic strikes (scale notes, C1–C6) |
 
-### MODEL と、ノブ 2〜5 の名前
+### MODEL and the names of knobs 2–5
 
-| MODEL | 内容 | 2 | 3 | 4 | 5 |
+| MODEL | What it is | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
-| MODAL | モーダル共鳴体（叩いた板や鐘のような共鳴） | STRUCT | BRIGHT | DAMP | POS |
-| SYMPA | 共鳴弦（主弦＋共鳴して鳴る弦） | STRUCT | BRIGHT | DAMP | POS |
-| STRNG | 変調・非調和の弦（STRUCT で弦の硬さ） | STRUCT | BRIGHT | DAMP | POS |
-| KVERB | Karplusverb（弦＋リバーブ） | STRUCT | BRIGHT | DCY+RV | POS |
-| FM | 2 オペレーター FM | RATIO | INDEX | DECAY | FDBK |
-| CHORD | Western Chords（共鳴弦が和音に固定） | STRUCT | BRIGHT | DAMP | POS |
-| DP-FM | Disastrous Peace＋フォルマント | CUTOFF | REGIST | ENV | VOWEL |
-| DP-CH | Disastrous Peace＋コーラス | CUTOFF | REGIST | ENV | CHORUS |
-| DP-RV | Disastrous Peace＋リバーブ | CUTOFF | REGIST | ENV | REVERB |
-| DP-F2 | Disastrous Peace＋フォルマント 2 | CUTOFF | REGIST | ENV | VOWEL |
-| DP-EN | Disastrous Peace＋アンサンブル | CUTOFF | REGIST | ENV | ENSMBL |
-| DP-R2 | Disastrous Peace＋リバーブ 2 | CUTOFF | REGIST | ENV | REVERB |
+| MODAL | Modal resonator (resonance like a struck plate or bell) | STRUCT | BRIGHT | DAMP | POS |
+| SYMPA | Sympathetic strings (a main string + strings ringing in sympathy) | STRUCT | BRIGHT | DAMP | POS |
+| STRNG | Modulated/inharmonic string (STRUCT sets the string's stiffness) | STRUCT | BRIGHT | DAMP | POS |
+| KVERB | Karplusverb (string + reverb) | STRUCT | BRIGHT | DCY+RV | POS |
+| FM | 2-operator FM | RATIO | INDEX | DECAY | FDBK |
+| CHORD | Western Chords (sympathetic strings fixed to a chord) | STRUCT | BRIGHT | DAMP | POS |
+| DP-FM | Disastrous Peace + formant | CUTOFF | REGIST | ENV | VOWEL |
+| DP-CH | Disastrous Peace + chorus | CUTOFF | REGIST | ENV | CHORUS |
+| DP-RV | Disastrous Peace + reverb | CUTOFF | REGIST | ENV | REVERB |
+| DP-F2 | Disastrous Peace + formant 2 | CUTOFF | REGIST | ENV | VOWEL |
+| DP-EN | Disastrous Peace + ensemble | CUTOFF | REGIST | ENV | ENSMBL |
+| DP-R2 | Disastrous Peace + reverb 2 | CUTOFF | REGIST | ENV | REVERB |
 
-- 名前が変わっても、中で動かしている値は同じ 4 つ（STRUCTURE / BRIGHTNESS /
-  DAMPING / POSITION）です。公式 DSP がモードごとに割り当てている意味を、
-  そのまま画面に表示しています。
-- **BRIGHT の下限**: MODAL・SYMPA・STRNG・KVERB・CHORD では、BRIGHT のノブ
-  0〜1 を公式 DSP の BRIGHTNESS 0.2〜1 に割り当てています。0.2 より下では
-  打撃が 15〜20 dB 削られ、ほとんど音が出なくなるためです（0.2.1）。
-  FM（INDEX 0 = 純粋なサイン波）と Disastrous Peace 系は 0〜1 のままです。
-- **FM**: RATIO = モジュレーターの周波数比（公式の量子化テーブル）、
-  INDEX = FM の深さ、DECAY = 内蔵エンベロープの長さ（最大付近ではドローン）、
-  FDBK = フィードバック（中央が 0、左右で 2 種類のフィードバック）。
-- **CHORD**（Western Chords と Disastrous Peace）: Scale ページの CHORD で
-  11 種類の和音（OCT, 5, sus4, m, m7, m9, m11, 69, M9, M7, M）を選びます。
-  和音を使うモデルでだけ表示されます。ノブ 2〜5 は、鳴っている音をリアルタイムに
-  変えるためのノブとして空けてあります。
-- **ノブ 2**: Western Chords の STRUCT は弦の非調和性を連続で変えます。
-  Disastrous Peace の CUTOFF は、公式 DSP にはない 2 極ローパスフィルターで、
-  オルガンの出力の後ろにあります（150 Hz〜20 kHz、レゾナンスなし）。公式 DSP の
-  STRUCTURE はこのモードでは和音選択にしか使われず、連続で動かせる値がないため
-  追加しました。右端では完全にバイパスされ、公式の音そのものになります。
-- **Disastrous Peace** は、実機で隠し操作をすると現れるオルガン／ストリングマシンです。
-  REGIST = オルガンのレジストレーション（倍音の組み合わせ）、
-  ENV = 回すほど減衰が長くなり、右半分ではアタックも遅くなり、右端でドローン、
-  ノブ 5 = エフェクトの量（フォルマントでは母音）。
-  発音・和音・エンベロープ・エフェクトはすべて公式の `StringSynthPart` です。
-- **KVERB**: DCY+RV は弦の減衰とリバーブの量・長さを同時に動かします。
-  POS は打つ位置と、ステレオの広がりも動かします。
+- Whatever the names, the values moved inside are the same four (STRUCTURE /
+  BRIGHTNESS / DAMPING / POSITION). The meaning the official DSP assigns to them per
+  mode is shown on screen as it is.
+- **BRIGHT's floor**: in MODAL, SYMPA, STRNG, KVERB and CHORD, BRIGHT's knob range 0–1
+  is mapped to the official DSP's BRIGHTNESS 0.2–1, because below 0.2 the strike is cut
+  by 15–20 dB and almost no sound comes out (0.2.1). FM (INDEX 0 = a pure sine) and the
+  Disastrous Peace family stay at 0–1.
+- **FM**: RATIO = the modulator's frequency ratio (the official quantisation table),
+  INDEX = FM depth, DECAY = length of the internal envelope (a drone near the
+  maximum), FDBK = feedback (0 at the centre, two kinds of feedback either side).
+- **CHORD** (Western Chords and Disastrous Peace): CHORD on the Scale page chooses one
+  of 11 chords (OCT, 5, sus4, m, m7, m9, m11, 69, M9, M7, M). It is shown only for
+  models that use chords. Knobs 2–5 are left free for changing the sounding notes in
+  real time.
+- **Knob 2**: Western Chords' STRUCT changes the strings' inharmonicity continuously.
+  Disastrous Peace's CUTOFF is a 2-pole low-pass not in the official DSP, after the
+  organ's output (150 Hz to 20 kHz, no resonance). The official DSP's STRUCTURE is used
+  only for chord selection in this mode, leaving nothing that can be moved
+  continuously, so this was added. Fully right it is bypassed completely and gives the
+  official sound itself.
+- **Disastrous Peace** is the organ / string machine that appears with a hidden gesture
+  on the hardware. REGIST = the organ's registration (combination of partials), ENV =
+  longer decay the further you turn, a slower attack too in the right half, a drone
+  fully right, knob 5 = amount of effect (the vowel in formant). Note-on, chords,
+  envelope and effects are all the official `StringSynthPart`.
+- **KVERB**: DCY+RV moves the string's decay and the reverb's amount and length
+  together. POS moves the strike position and also the stereo width.
 
-### 2 ページ目（Rings）
+### Page 2 (Rings)
 
-| ノブ | 表示 | 内容 |
+| Knob | Display | What it does |
 |---|---|---|
-| 1 | FREQ | 移調 -24〜+24 半音。MIDI ノートと PITCH の音程はそのまま、全体を上下させます |
-| 2 | FINE | 微調整 ±100 セント |
-| 3 | EXCITE | 打撃（内部エキサイター）の強さ 0〜200 %。100 % が実機と同じ。記録できます |
-| 4 | SPREAD | MIDI で和音を弾いたとき、1 音ずつ鳴らす間隔 10〜200 ms |
-| 5 | VELO | ベロシティの効き 0〜100 %（0 % = 常に最大の強さ） |
-| 6 | BEND | ピッチベンドの幅 0〜24 半音 |
-| 7 | OUTPUT | STEREO（ODD = 左、EVEN = 右）/ SUM（ODD＋EVEN のモノラル）/ ODD / EVEN |
-| 8 | GAIN | -24〜+12 dB |
+| 1 | FREQ | Transpose -24 to +24 semitones. Shifts everything up or down, leaving the pitches of MIDI notes and PITCH as they are |
+| 2 | FINE | Fine tuning ±100 cents |
+| 3 | EXCITE | Strength of the strike (internal exciter) 0–200 %. 100 % is the same as the hardware. Recordable |
+| 4 | SPREAD | When a chord is played over MIDI, the spacing for sounding it one note at a time, 10–200 ms |
+| 5 | VELO | How much velocity acts, 0–100 % (0 % = always full strength) |
+| 6 | BEND | Pitch-bend range 0–24 semitones |
+| 7 | OUTPUT | STEREO (ODD = left, EVEN = right) / SUM (ODD + EVEN in mono) / ODD / EVEN |
+| 8 | GAIN | -24 to +12 dB |
 
-### 3 ページ目（Scale）
+### Page 3 (Scale)
 
-| ノブ | 表示 | 内容 |
+| Knob | Display | What it does |
 |---|---|---|
-| 1 | ROOT | PITCH のスケールの主音（C〜B） |
-| 2 | SCALE | PITCH のスケール（12 種、既定 Phrygian） |
-| 3 | STEPS | ループの長さ 8 / 16 ステップ |
-| 4 | RESET | クリックで全ボイスを無音にする（ノブを回しても動きません） |
+| 1 | ROOT | Root of the PITCH scale (C to B) |
+| 2 | SCALE | Scale of PITCH (12 kinds, default Phrygian) |
+| 3 | STEPS | Loop length 8 / 16 steps |
+| 4 | RESET | Click to silence every voice (turning the knob does nothing) |
 
-**SPREAD について。** 実機の Rings は、ストラム（トリガー）が 10 ms 以内に
-続くと 2 回目以降を無視します（`Strummer` の仕様）。和音を同時に弾くと
-1 音しか鳴らないことになるので、このモジュールではノートを順番待ちにして、
-最低 10.5 ms ずつずらして 1 音ずつストラムします。SPREAD を上げると
-ギターのストロークのような時間差になります。実機の
-「自動ストラム検出」は外部オーディオ入力用の機能で、楽器として使う
-このモジュールには入力がないため、代わりにこのノブを置いています。
+**About SPREAD.** The hardware Rings ignores the second and later strums (triggers)
+arriving within 10 ms (how `Strummer` works). Playing a chord at once would therefore
+sound only one note, so this module queues the notes and strums them one at a time, at
+least 10.5 ms apart. Raising SPREAD gives a time offset like a guitar strum. The
+hardware's "automatic strum detection" is a feature for the external audio input, and
+this module, being an instrument, has no input, so this knob is there instead.
 
-**EXCITE と VELO について。** 実機の内部エキサイターは打撃の強さが一定です。
-このモジュールでは、打撃の強さ（モーダルのパルス、弦のノイズバースト、
-FM の内蔵エンベロープ、Disastrous Peace のエンベロープの高さ）に
-「EXCITE × ベロシティ」を掛けています。強さ 1.0（EXCITE 100 %・ベロシティ 127）
-のとき、出力は公式 DSP と 1 サンプル単位で同じです。
+**About EXCITE and VELO.** The hardware's internal exciter strikes at a constant
+strength. This module multiplies the strike strength (the modal pulse, the string's
+noise burst, FM's internal envelope, the height of Disastrous Peace's envelope) by
+"EXCITE × velocity". At strength 1.0 (EXCITE 100 %, velocity 127) the output is
+identical sample for sample to the official DSP.
 
 ### ODD / EVEN
 
-Rings には ODD と EVEN の 2 つの出力があります。
+Rings has two outputs, ODD and EVEN.
 
-- **1 ボイス**: 1 つの共鳴体の 2 つのピックアップ（倍音の取り出し方が違う）。
-- **2〜4 ボイス**: ボイスが交互に ODD と EVEN に振り分けられます。
-  最初のノートは EVEN（右）、次は ODD（左）…と交互です（実機と同じ）。
+- **1 voice**: two pickups on one resonator (different ways of taking out the harmonics).
+- **2–4 voices**: voices are assigned to ODD and EVEN in turn. The first note goes to
+  EVEN (right), the next to ODD (left), and so on (as on the hardware).
 
-OUTPUT が STEREO のとき、ODD が左、EVEN が右に出ます。左右に同じ音を
-コピーしたものではありません。
+With OUTPUT at STEREO, ODD comes out left and EVEN right. It is not the same sound
+copied to both sides.
 
 ---
 
 ## MIDI
 
-| メッセージ | 動作 |
+| Message | Action |
 |---|---|
-| ノートオン | 音程（V/OCT）を設定してストラム。同じノートでも毎回ストラム |
-| ノートオフ | 何もしない（Rings にはゲートがない） |
-| ベロシティ | 打撃の強さ（VELO と EXCITE） |
-| ピッチベンド | 全体の音程（BEND の幅、実機の FM 入力と同じ平滑化） |
-| CC 120（All Sound Off） | RESET と同じ |
-| CC 123（All Notes Off） | 順番待ちのノートを捨てる |
-| CC 121 | ピッチベンドを 0 に戻す |
-| MIDI クロック（スタート／クロック／ストップ） | Schwung が再生位置を渡さない環境でだけ、自動打撃のテンポに使う |
+| Note on | Sets the pitch (V/OCT) and strums. Strums every time, even for the same note |
+| Note off | Does nothing (Rings has no gate) |
+| Velocity | Strike strength (VELO and EXCITE) |
+| Pitch bend | Overall pitch (BEND's range, with the same smoothing as the hardware's FM input) |
+| CC 120 (All Sound Off) | The same as RESET |
+| CC 123 (All Notes Off) | Discards queued notes |
+| CC 121 | Returns pitch bend to 0 |
+| MIDI clock (start/clock/stop) | Used as the tempo of the automatic strikes only where Schwung passes no playback position |
 
-MIDI チャンネル、スケール、移調は Schwung / Move 側の仕組み（スロットの受信
-チャンネル、パッドのスケール）がそのまま使えます。
+The MIDI channel, scale and transposition can use Schwung / Move's own mechanisms (the
+slot's receive channel, the pads' scale) as they are.
 
-ボイスの割り当ては公式のまま、ストラムごとに次のボイスへ（3 ボイスのときは
-実機と同じ 1,0,2,1,0,2… のパターン）です。
-
----
-
-## サンプルレートと音程
-
-Rings の DSP は 48 kHz（`rings/dsp/dsp.h` の `kSampleRate`）を前提に、
-音程・エンベロープ・フィルター・ディレイ・リバーブの時間をすべて計算しています。
-そこでこのモジュールは DSP を実機どおり 48 kHz・24 サンプル単位で動かし、
-64 タップのポリフェーズ FIR で 44.1 kHz に変換しています（20 kHz まで平坦、
-遅延 約 0.7 ms ＋ 最大 1 ブロック 0.5 ms）。音程の誤差は FM の正弦波で測って
-C1〜C7 で 0.05 セント以内です。
-
-弦モデル（STRNG）は C1〜C7 で最大 15 セント、Karplusverb は 10 セントほど
-ずれます。これは公式の弦モデル自体の特性（減衰フィルターの遅れ）で、
-移植による誤差ではありません。
+Voice allocation is as official: each strum moves to the next voice (with 3 voices, the
+same 1,0,2,1,0,2… pattern as the hardware).
 
 ---
 
-## 設定の保存
+## Sample rate and pitch
 
-全パラメーター、記録したノブの動き、ステップの ON/OFF は `state` として保存され、
-Schwung のスロット保存・My Presets・プリセットパッドで保存／復元できます
-（RESET と REC の ON/OFF は保存されません）。0.1.0 で保存した状態も読み込めます
-（記録なし・全ステップ ON として読み込まれます）。
+Rings' DSP computes its pitch, envelopes, filters, delays and reverb times all
+assuming 48 kHz (`kSampleRate` in `rings/dsp/dsp.h`). So this module runs the DSP at
+48 kHz in 24-sample units, as on the hardware, and converts to 44.1 kHz with a 64-tap
+polyphase FIR (flat to 20 kHz, latency about 0.7 ms + at most one 0.5 ms block). Pitch
+error, measured with FM's sine, is within 0.05 cent over C1–C7.
 
-画面を表示していないときや音が止まっているときも、自動打撃に遅れが出ないよう、
-無音のブロックには -75 dBFS の小さな直流（6 LSB）を出しています。Schwung は無音の
-スロットの処理を間引くため、これがないと再生開始直後の打撃が遅れます。
-VOLUME が 0 のときは完全な無音です。
-
----
-
-## 検証（`scripts/test.sh`）
-
-- **上流との一致**: 同梱 DSP（パッチ込み）と、未改変の公式ソースを同じ入力
-  （全 6 モデル＋6 FX × 1〜4 ボイス、ノブ・和音・FM・ストラムを動かす 460 万
-  サンプル）で動かし、出力がバイト単位で一致。
-- **ラッパーが何も足していないこと**: このモジュールの出力が、公式 DSP を
-  `rings.cc` と同じ順番で手で駆動した出力と、全 12 モード × 4 ボイス数で
-  ビット一致。
-- 音程（C1〜C7）、ベンド・FINE・FREQ、同音連打（12 回 → 12 ストラム）、
-  4 音同時の和音（4 ストラム、取りこぼし 0）、ノートオフで音が変わらないこと、
-  1/2/3/4 ボイス、ODD/EVEN の振り分け、各ノブで音が変わること（全モデル）、
-  Disastrous Peace の 6 エフェクトがそれぞれ違う音であること、出力モード、
-  ベロシティ、状態の保存と復元、RESET、モデル切り替え時にクリックが出ないこと、
-  10 分間のランダム演奏（全モデル、NaN・異常振幅なし）。ASan / UBSan 付き。
-- プラグインとして dlopen して全モデルを鳴らすスモークテスト。
-- 演奏機能: 停止中は打たないこと、120 BPM で 1 秒 8 打撃（取りこぼし 0）、
-  PITCH の音程（G2 で 0 セント）、各打撃が 16 分音符の頭にそろうこと、
-  パッド OFF で打たないこと、MIDI と自動打撃の併用、ノブの記録と再生
-  （REC OFF では記録しない、ノブの値を書き換えない、停止中はノブの値）、
-  EXCITE の記録でアクセント、RANDOM の音がすべてスケール上にあること、
-  スケール変更での PITCH の移動、16 ステップ、記録とステップの保存と復元
-  （0.1.0 の状態・壊れたデータ）、3000 回のランダム操作で異常なし。
-- Schwung 本体のページエンジン（実機からコピーした `shared/`）で、
-  全 12 モデルのノブの並びと名前（MODEL ノブを回したとき・プリセットで
-  切り替わったとき）、パッド、タッチ記録、PITCH の音名、MODELS 一覧、
-  プリセットパッドを確認。
+The string model (STRNG) is off by up to 15 cents over C1–C7, and Karplusverb by about
+10 cents. This is a property of the official string model itself (the delay of its
+damping filter), not an error from the port.
 
 ---
 
-## ビルドとインストール
+## Saved settings
+
+Every parameter, the recorded knob movements and the step ON/OFF pattern are saved as
+`state`, and can be saved/restored with Schwung's slot saving, My Presets and the preset
+pads (RESET and the REC state are not saved). States saved by 0.1.0 also load (as no
+recordings and every step ON).
+
+So that the automatic strikes are not delayed even when the screen is not shown or the
+sound has stopped, silent blocks output a tiny DC of -75 dBFS (6 LSB). Schwung thins out
+the processing of silent slots, and without this the strikes right after playback
+starts would be late. At VOLUME 0 it is completely silent.
+
+---
+
+## Verification (`scripts/test.sh`)
+
+- **Matching upstream**: the bundled DSP (with patches) and the unmodified official
+  source are run on the same input (all 6 models + 6 FX × 1–4 voices, 4.6 million
+  samples moving knobs, chords, FM and strums), and the output matches byte for byte.
+- **The wrapper adds nothing**: this module's output is bit-identical, across all 12
+  modes × 4 voice counts, to the official DSP driven by hand in the same order as
+  `rings.cc`.
+- Pitch (C1–C7), bend, FINE and FREQ, repeated notes (12 → 12 strums), 4-note chords at
+  once (4 strums, 0 dropped), note-offs not changing the sound, 1/2/3/4 voices, ODD/EVEN
+  assignment, every knob changing the sound (every model), Disastrous Peace's 6 effects
+  each sounding different, output modes, velocity, saving and restoring state, RESET, no
+  clicks on model switches, 10 minutes of random playing (every model, no NaN or abnormal
+  amplitude). With ASan / UBSan.
+- A smoke test that dlopens it as a plugin and plays every model.
+- Performance features: no strikes while stopped, 8 strikes per second at 120 BPM (0
+  dropped), PITCH's pitch (0 cents at G2), every strike lining up with the start of a
+  1/16, no strikes on OFF pads, MIDI and automatic strikes together, recording and
+  playback of knobs (nothing recorded with REC OFF, knob values not overwritten, knob
+  values while stopped), accents from recording EXCITE, every RANDOM note being on the
+  scale, PITCH moving with scale changes, 16 steps, saving and restoring recordings and
+  steps (0.1.0 states, broken data), 3000 random operations without anomalies.
+- With Schwung's own page engine (`shared/` copied from the device): the order and names
+  of the knobs for all 12 models (when turning the MODEL knob and when a preset switches
+  it), pads, touch recording, PITCH's note names, the MODELS list and the preset pads.
+
+---
+
+## Building and installing
 
 ```bash
-scripts/test.sh                                # 全テスト + Move 用ビルド
+scripts/test.sh                                # all tests + the Move build
 scripts/build.sh arm64                         # dist/orings-module.tar.gz
-python3 scripts/install.py http://192.168.1.42:7700
+python3 scripts/install.py http://move.local:7700
 ```
 
-インストール後は Move を再起動してください。
+Restart Move after installing.
 
-このリポジトリは、同じ Rings DSP（`src/rings/mi/`）から Audio FX 版の
-**oRings FX**（`orings-fx`、入力音で共鳴体を鳴らすエフェクト）も作ります。
-`scripts/build.sh arm64` で `dist/orings-fx-module.tar.gz` もでき、
-`--module orings-fx` を付けて同じ `install.py` でインストールします。
-説明は `fx/README.md` にあります。
+From the same Rings DSP (`src/rings/mi/`), this repository also builds the Audio FX
+version **oRings FX** (`orings-fx`, an effect that excites the resonator with its input
+audio). `scripts/build.sh arm64` also produces `dist/orings-fx-module.tar.gz`, which is
+installed with the same `install.py` plus `--module orings-fx`. It is described in
+`fx/README.md`.
 
-同梱の DSP には公式ソースに対するパッチが 2 つあります（`patches/`）。
-`0001` は上記の打撃の強さ、`0002` は stmlib の `Interpolate` がテーブルの
-最後の要素ちょうどで 1 つ先を読んでいた不具合（DAMP を最大 1.0 にしたときに
-起きる。読んだ値には重み 0 が掛かるので音は変わらない）の修正です。
+The bundled DSP has 2 patches against the official source (`patches/`): `0001` is the
+strike strength above, and `0002` fixes stmlib's `Interpolate` reading one past the end
+when looking up exactly the table's last element (it happens with DAMP at its maximum
+1.0; the value read is multiplied by a weight of 0, so the sound does not change).
 
-CPU 負荷（Move 実機）: `scripts/build_bench.sh` でベンチを作り、
-`scripts/bench_move.sh ableton@<Move の IP> -i <鍵>` で測れます。
+CPU load (real Move): build the bench with `scripts/build_bench.sh` and measure with
+`scripts/bench_move.sh ableton@<Move's IP>`.
 
 ---
 
-## ライセンス
+## Licence
 
-MIT（`LICENSE`）。同梱している Rings の DSP と stmlib は Emilie Gillet 氏の
-MIT ライセンスのコードです（`THIRD_PARTY_LICENSES.md`）。RANDOM のメロディ生成
-（`src/phrase/`）と元フレーズの MIDI（`patterns/`）は作者自身のもので、MIT です。
+MIT (`LICENSE`). The bundled Rings DSP and stmlib are Emilie Gillet's MIT-licensed code
+(`THIRD_PARTY_LICENSES.md`). The RANDOM melody generation (`src/phrase/`) and the source
+phrase MIDI files (`patterns/`) are the author's own, under MIT.
 
-このモジュールは非公式の移植で、Mutable Instruments とは関係ありません。
-Mutable Instruments は登録商標です。
+This module is an unofficial port and has no connection with Mutable Instruments.
+Mutable Instruments is a registered trademark.
